@@ -4,9 +4,9 @@ import * as nesl from 'nesl-js';
 console.log('nesl-js exports:', Object.keys(nesl));
 console.log('\nparseNesl type:', typeof parseNesl);
 
-const result = parseNesl(`#!NESL [@three-char-SHA-256: abc]
+const result = parseNesl(`#!nesl [@three-char-SHA-256: abc]
 action = "test"
-#!END_NESL_abc`);
+#!end_abc`);
 
 console.log('\nResult:', JSON.stringify(result, null, 2));
 console.log('\nResult type:', typeof result);

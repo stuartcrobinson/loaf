@@ -6,11 +6,11 @@ const testContent = `# My Document
 Some content here.
 
 \`\`\`sh nesl
-#!NESL [@three-char-SHA-256: abc]
+#!nesl [@three-char-SHA-256: abc]
 action = "file_write"
 path = "/tmp/debug_orch/output.txt"
 content = "Hello from listener!"
-#!END_NESL_abc
+#!end_abc
 \`\`\`
 `;
 

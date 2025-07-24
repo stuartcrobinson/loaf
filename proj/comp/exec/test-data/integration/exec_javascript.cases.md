@@ -2,11 +2,11 @@
 
 ## Basic console.log
 ```sh nesl
-#!NESL [@three-char-SHA-256: j1s]
+#!nesl [@three-char-SHA-256: j1s]
 action = "exec"
 lang = "javascript"
 code = "console.log('Hello from Node.js')"
-#!END_NESL_j1s
+#!end_j1s
 ```
 
 ```json
@@ -20,16 +20,16 @@ code = "console.log('Hello from Node.js')"
 
 ## Multi-line with variables
 ```sh nesl
-#!NESL [@three-char-SHA-256: j2s]
+#!nesl [@three-char-SHA-256: j2s]
 action = "exec"
 lang = "javascript"
-code = <<'EOT_NESL_j2s'
+code = <<'EOT_j2s'
 const numbers = [1, 2, 3];
 numbers.forEach(n => {
   console.log(`Number: ${n}`);
 });
-EOT_NESL_j2s
-#!END_NESL_j2s
+EOT_j2s
+#!end_j2s
 ```
 
 ```json
@@ -43,11 +43,11 @@ EOT_NESL_j2s
 
 ## Syntax error
 ```sh nesl
-#!NESL [@three-char-SHA-256: j3s]
+#!nesl [@three-char-SHA-256: j3s]
 action = "exec"
 lang = "javascript"
 code = "console.log('unclosed string"
-#!END_NESL_j3s
+#!end_j3s
 ```
 
 ```json
@@ -61,11 +61,11 @@ code = "console.log('unclosed string"
 
 ## Process.exit with code
 ```sh nesl
-#!NESL [@three-char-SHA-256: j4s]
+#!nesl [@three-char-SHA-256: j4s]
 action = "exec"
 lang = "javascript"
 code = "console.log('Exiting...'); process.exit(42);"
-#!END_NESL_j4s
+#!end_j4s
 ```
 
 ```json
@@ -79,12 +79,12 @@ code = "console.log('Exiting...'); process.exit(42);"
 
 ## Working directory check
 ```sh nesl
-#!NESL [@three-char-SHA-256: j5s]
+#!nesl [@three-char-SHA-256: j5s]
 action = "exec"
 lang = "javascript"
 code = "console.log(process.cwd())"
 cwd = "/tmp"
-#!END_NESL_j5s
+#!end_j5s
 ```
 
 ```json
@@ -98,17 +98,17 @@ cwd = "/tmp"
 
 ## Async/await support
 ```sh nesl
-#!NESL [@three-char-SHA-256: j6s]
+#!nesl [@three-char-SHA-256: j6s]
 action = "exec"
 lang = "javascript"
-code = <<'EOT_NESL_j6s'
+code = <<'EOT_j6s'
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 (async () => {
   await delay(100);
   console.log('After delay');
 })();
-EOT_NESL_j6s
-#!END_NESL_j6s
+EOT_j6s
+#!end_j6s
 ```
 
 ```json
@@ -122,11 +122,11 @@ EOT_NESL_j6s
 
 ## JSON output
 ```sh nesl
-#!NESL [@three-char-SHA-256: j7s]
+#!nesl [@three-char-SHA-256: j7s]
 action = "exec"
 lang = "javascript"
 code = "console.log(JSON.stringify({status: 'ok', count: 3}))"
-#!END_NESL_j7s
+#!end_j7s
 ```
 
 ```json

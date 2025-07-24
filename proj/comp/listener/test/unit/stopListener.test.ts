@@ -64,7 +64,7 @@ export function stopListenerTests() {
     expect(handle.filePath).toBe(testFile);
 
     // Verify new listener works
-    await writeFile(testFile, '```sh nesl\n#!NESL [@three-char-SHA-256: tst]\naction = "exec"\nlang = "bash"\ncode = "echo test"\n#!END_NESL_tst\n```');
+    await writeFile(testFile, '```sh nesl\n#!nesl [@three-char-SHA-256: tst]\naction = "exec"\nlang = "bash"\ncode = "echo test"\n#!end_tst\n```');
 
     // Poll for the processed content (up to 2 seconds)
     const startTime = Date.now();

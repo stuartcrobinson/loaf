@@ -38,7 +38,7 @@ export async function parseNeslResponse(neslText: string): Promise<ParseResult> 
   // if (isDebugging) {
   //   console.log('DEBUG parseNeslResponse: Input text length:', neslText.length);
   //   console.log('DEBUG parseNeslResponse: Contains NESL blocks:', neslText.includes('#!NESL'));
-  //   console.log('DEBUG parseNeslResponse: Number of #!NESL occurrences:', (neslText.match(/#!NESL/g) || []).length);
+  //   console.log('DEBUG parseNeslResponse: Number of #!nesl occurrences:', (neslText.match(/#!NESL/g) || []).length);
   //   console.log('DEBUG parseNeslResponse: Number of #!END_NESL occurrences:', (neslText.match(/#!END_NESL/g) || []).length);
   // }
 
@@ -106,7 +106,7 @@ export async function parseNeslResponse(neslText: string): Promise<ParseResult> 
         message: parseError.message,
         blockStartLine: block?.startLine || parseError.line,
         neslContent: parseError.context
-          ? `#!NESL [@three-char-SHA-256: ${parseError.blockId}]\n${parseError.context}`.trimEnd()
+          ? `#!nesl [@three-char-SHA-256: ${parseError.blockId}]\n${parseError.context}`.trimEnd()
           : reconstructNeslBlock(block || { id: parseError.blockId, properties: {} })
       });
     }
@@ -262,7 +262,7 @@ function reconstructNeslBlock(block: Block): string {
   const lines: string[] = [];
 
   // Start line
-  lines.push(`#!NESL [@three-char-SHA-256: ${block.id || 'unknown'}]`);
+  lines.push(`#!nesl [@three-char-SHA-256: ${block.id || 'unknown'}]`);
 
   // Properties
   for (const [key, value] of Object.entries(block.properties || {})) {
@@ -270,9 +270,9 @@ function reconstructNeslBlock(block: Block): string {
 
     if (typeof value === 'string' && value.includes('\n')) {
       // Multi-line value with heredoc
-      lines.push(`${key} = <<'EOT_NESL_${block.id}'`);
+      lines.push(`${key} = <<'EOT_${block.id}'`);
       lines.push(value);
-      lines.push(`EOT_NESL_${block.id}`);
+      lines.push(`EOT_${block.id}`);
     } else {
       // Single line value - use JSON.stringify to handle quotes properly
       lines.push(`${key} = ${JSON.stringify(value)}`);
@@ -280,7 +280,7 @@ function reconstructNeslBlock(block: Block): string {
   }
 
   // End line
-  lines.push(`#!END_NESL_${block.id || 'unknown'}`);
+  lines.push(`#!end_${block.id || 'unknown'}`);
 
   return lines.join('\n');
 }

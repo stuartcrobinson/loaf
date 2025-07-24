@@ -196,11 +196,11 @@ like:
 ### 003-move-nonexistent-file
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: mnf]
+#!nesl [@three-char-SHA-256: mnf]
 action = "file_move"
 old_path = "/tmp/t_move-nonexistent-file/ghost.txt"
 new_path = "/tmp/t_move-nonexistent-file/nowhere.txt"
-#!END_NESL_mnf
+#!end_mnf
 ```
 
 ```json

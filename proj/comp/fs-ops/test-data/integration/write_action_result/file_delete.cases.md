@@ -5,18 +5,18 @@
 ### 001-delete-existing-file
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: cre]
+#!nesl [@three-char-SHA-256: cre]
 action = "file_write"
 path = "/tmp/t_delete-existing-file/to-delete.txt"
 content = "This file will be deleted"
-#!END_NESL_cre
+#!end_cre
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: del]
+#!nesl [@three-char-SHA-256: del]
 action = "file_delete"
 path = "/tmp/t_delete-existing-file/to-delete.txt"
-#!END_NESL_del
+#!end_del
 ```
 
 ```json
@@ -34,10 +34,10 @@ path = "/tmp/t_delete-existing-file/to-delete.txt"
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: dnf]
+#!nesl [@three-char-SHA-256: dnf]
 action = "file_delete"
 path = "/tmp/t_delete-nonexistent-file/does-not-exist.txt"
-#!END_NESL_dnf
+#!end_dnf
 ```
 
 ```json

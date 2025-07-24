@@ -2,11 +2,11 @@
 
 ## Missing interpreter
 ```sh nesl
-#!NESL [@three-char-SHA-256: e1r]
+#!nesl [@three-char-SHA-256: e1r]
 action = "exec"
 lang = "cobol"
 code = "DISPLAY 'hello'."
-#!END_NESL_e1r
+#!end_e1r
 ```
 
 ```json
@@ -20,12 +20,12 @@ code = "DISPLAY 'hello'."
 
 ## Invalid working directory
 ```sh nesl
-#!NESL [@three-char-SHA-256: e2r]
+#!nesl [@three-char-SHA-256: e2r]
 action = "exec"
 lang = "bash"
 code = "pwd"
 cwd = "/nonexistent/directory/path"
-#!END_NESL_e2r
+#!end_e2r
 ```
 
 ```json
@@ -39,12 +39,12 @@ cwd = "/nonexistent/directory/path"
 
 ## Process timeout
 ```sh nesl
-#!NESL [@three-char-SHA-256: e3r]
+#!nesl [@three-char-SHA-256: e3r]
 action = "exec"
 lang = "bash"
 code = "sleep 2"
 timeout = 200
-#!END_NESL_e3r
+#!end_e3r
 ```
 
 ```json
@@ -58,12 +58,12 @@ timeout = 200
 
 ## Timeout with partial output
 ```sh nesl
-#!NESL [@three-char-SHA-256: e4r]
+#!nesl [@three-char-SHA-256: e4r]
 action = "exec"
 lang = "bash"
 code = "echo 'Started'; sleep 2; echo 'Never seen'"
 timeout = 200
-#!END_NESL_e4r
+#!end_e4r
 ```
 
 ```json
@@ -77,11 +77,11 @@ timeout = 200
 <!-- 
 ## Large output truncation
 ```sh nesl
-#!NESL [@three-char-SHA-256: e5r]
+#!nesl [@three-char-SHA-256: e5r]
 action = "exec"
 lang = "bash"
 code = "for i in {1..100000}; do echo 'Line '$i': This is a very long line of output that will eventually exceed our size limit'; done"
-#!END_NESL_e5r
+#!end_e5r
 ```
 
 ```json
@@ -95,11 +95,11 @@ code = "for i in {1..100000}; do echo 'Line '$i': This is a very long line of ou
 
 ## Permission denied
 ```sh nesl
-#!NESL [@three-char-SHA-256: e6r]
+#!nesl [@three-char-SHA-256: e6r]
 action = "exec"
 lang = "bash"
 code = "cat /private/etc/sudoers"
-#!END_NESL_e6r
+#!end_e6r
 ```
 
 ```json
@@ -113,11 +113,11 @@ code = "cat /private/etc/sudoers"
 <!-- 
 ## Memory allocation failure
 ```sh nesl
-#!NESL [@three-char-SHA-256: e7r]
+#!nesl [@three-char-SHA-256: e7r]
 action = "exec"
 lang = "python"
 code = "a = [0] * (10**10)"
-#!END_NESL_e7r
+#!end_e7r
 ```
 
 ```json
@@ -131,12 +131,12 @@ code = "a = [0] * (10**10)"
 
 ## Interactive command (no stdin)
 ```sh nesl
-#!NESL [@three-char-SHA-256: e8r]
+#!nesl [@three-char-SHA-256: e8r]
 action = "exec"
 lang = "python"
 code = "name = input('Enter name: '); print(f'Hello {name}')"
 timeout = 200
-#!END_NESL_e8r
+#!end_e8r
 ```
 
 ```json
@@ -150,11 +150,11 @@ timeout = 200
 
 ## Unsupported language
 ```sh nesl
-#!NESL [@three-char-SHA-256: e9r]
+#!nesl [@three-char-SHA-256: e9r]
 action = "exec"
 lang = "rust"
 code = "println!(\"Hello\");"
-#!END_NESL_e9r
+#!end_e9r
 ```
 
 ```json
@@ -168,11 +168,11 @@ code = "println!(\"Hello\");"
 
 ## Empty code
 ```sh nesl
-#!NESL [@three-char-SHA-256: e10r]
+#!nesl [@three-char-SHA-256: e10r]
 action = "exec"
 lang = "bash"
 code = ""
-#!END_NESL_e10r
+#!end_e10r
 ```
 
 ```json

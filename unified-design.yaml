@@ -6,14 +6,14 @@
 
 NESL_synatx_example: |
   ```sh nesl
-  #!NESL [@three-char-SHA-256: k7m]
+  #!nesl [@three-char-SHA-256: k7m]
   action = "file_write"
   path = "/tmp/\"hello\".txt"
-  content = <<'EOT_NESL_k7m'
+  content = <<'EOT_k7m'
   Hello world!
   how are you?
-  EOT_NESL_k7m
-  #!END_NESL_k7m
+  EOT_k7m
+  #!end_k7m
   ```
 
 

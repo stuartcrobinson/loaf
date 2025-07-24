@@ -2,11 +2,11 @@
 
 ## Basic echo
 ```sh nesl
-#!NESL [@three-char-SHA-256: a1b]
+#!nesl [@three-char-SHA-256: a1b]
 action = "exec"
 lang = "bash"
 code = "echo 'Hello from bash'"
-#!END_NESL_a1b
+#!end_a1b
 ```
 
 
@@ -21,15 +21,15 @@ code = "echo 'Hello from bash'"
 
 ## Multi-line script
 ```sh nesl
-#!NESL [@three-char-SHA-256: a2b]
+#!nesl [@three-char-SHA-256: a2b]
 action = "exec"
 lang = "bash"
-code = <<'EOT_NESL_a2b'
+code = <<'EOT_a2b'
 for i in 1 2 3; do
   echo "Number: $i"
 done
-EOT_NESL_a2b
-#!END_NESL_a2b
+EOT_a2b
+#!end_a2b
 ```
 
 
@@ -44,11 +44,11 @@ EOT_NESL_a2b
 
 ## Error output
 ```sh nesl
-#!NESL [@three-char-SHA-256: a3b]
+#!nesl [@three-char-SHA-256: a3b]
 action = "exec"
 lang = "bash"
 code = "echo 'Error!' >&2 && exit 1"
-#!END_NESL_a3b
+#!end_a3b
 ```
 
 
@@ -63,12 +63,12 @@ code = "echo 'Error!' >&2 && exit 1"
 
 ## Custom working directory
 ```sh nesl
-#!NESL [@three-char-SHA-256: a4b]
+#!nesl [@three-char-SHA-256: a4b]
 action = "exec"
 lang = "bash"
 code = "pwd"
 cwd = "/tmp"
-#!END_NESL_a4b
+#!end_a4b
 ```
 
 
@@ -83,11 +83,11 @@ cwd = "/tmp"
 
 ## Environment variable access
 ```sh nesl
-#!NESL [@three-char-SHA-256: a5b]
+#!nesl [@three-char-SHA-256: a5b]
 action = "exec"
 lang = "bash"
 code = "echo $HOME"
-#!END_NESL_a5b
+#!end_a5b
 ```
 
 
@@ -102,11 +102,11 @@ code = "echo $HOME"
 
 ## Command not found
 ```sh nesl
-#!NESL [@three-char-SHA-256: a6b]
+#!nesl [@three-char-SHA-256: a6b]
 action = "exec"
 lang = "bash"
 code = "this_command_does_not_exist"
-#!END_NESL_a6b
+#!end_a6b
 ```
 
 
@@ -121,11 +121,11 @@ code = "this_command_does_not_exist"
 
 ## Quotes and special characters
 ```sh nesl
-#!NESL [@three-char-SHA-256: a7b]
+#!nesl [@three-char-SHA-256: a7b]
 action = "exec"
 lang = "bash"
 code = "echo \"It's a 'test' with \$pecial chars: * & < >\""
-#!END_NESL_a7b
+#!end_a7b
 ```
 
 

@@ -5,11 +5,11 @@
 ### 001-single-file-create
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: abc]
+#!nesl [@three-char-SHA-256: abc]
 action = "file_write"
 path = "/tmp/test.txt"
 content = "hello world"
-#!END_NESL_abc
+#!end_abc
 ```
 
 ```json
@@ -35,19 +35,19 @@ content = "hello world"
 ### 002-multiple-blocks-mixed-success
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: f1r]
+#!nesl [@three-char-SHA-256: f1r]
 action = "file_write"
 path = "/tmp/first.txt"
 content = "first"
-#!END_NESL_f1r
+#!end_f1r
 
 Some text between blocks
 
-#!NESL [@three-char-SHA-256: s3c]
+#!nesl [@three-char-SHA-256: s3c]
 action = "file_write"
 path = "/tmp/nonexistent/second.txt"
 content = "fails"
-#!END_NESL_s3c
+#!end_s3c
 ```
 
 ```json
@@ -86,10 +86,10 @@ content = "fails"
 ### 003-invalid-action
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: inv]
+#!nesl [@three-char-SHA-256: inv]
 action = "invalid_action"
 path = "/tmp/test.txt"
-#!END_NESL_inv
+#!end_inv
 ```
 
 ```json
@@ -115,16 +115,16 @@ path = "/tmp/test.txt"
 ### 004-parser-error-continues
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: dup]
+#!nesl [@three-char-SHA-256: dup]
 key = "first"
 key = "second"
-#!END_NESL_dup
+#!end_dup
 
-#!NESL [@three-char-SHA-256: ok]
+#!nesl [@three-char-SHA-256: ok]
 action = "file_write"
 path = "/tmp/after-error.txt"
 content = "should work"
-#!END_NESL_ok
+#!end_ok
 ```
 
 ```json
@@ -158,11 +158,11 @@ content = "should work"
 ### 005-exec-bash
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: cmd]
+#!nesl [@three-char-SHA-256: cmd]
 action = "exec"
 code = "echo 'hello from shell'"
 lang = "bash"
-#!END_NESL_cmd
+#!end_cmd
 ```
 
 ```json

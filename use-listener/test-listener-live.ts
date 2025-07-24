@@ -14,10 +14,10 @@ async function main() {
 Try adding NESL blocks below this line:
 
 \`\`\`sh nesl
-#!NESL [@three-char-SHA-256: abc]
+#!nesl [@three-char-SHA-256: abc]
 action = "ls"
 path = "."
-#!END_NESL_abc
+#!end_abc
 \`\`\`
 
 `, { flag: 'wx' }); // wx = write only if doesn't exist

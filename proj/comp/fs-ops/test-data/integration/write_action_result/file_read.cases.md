@@ -5,18 +5,18 @@
 ### 001-read-existing-file
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: crf]
+#!nesl [@three-char-SHA-256: crf]
 action = "file_write"
 path = "/tmp/t_read-existing-file/readable.txt"
 content = "This is readable content"
-#!END_NESL_crf
+#!end_crf
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: rdf]
+#!nesl [@three-char-SHA-256: rdf]
 action = "file_read"
 path = "/tmp/t_read-existing-file/readable.txt"
-#!END_NESL_rdf
+#!end_rdf
 ```
 
 ```json
@@ -35,10 +35,10 @@ path = "/tmp/t_read-existing-file/readable.txt"
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: rnx]
+#!nesl [@three-char-SHA-256: rnx]
 action = "file_read"
 path = "/tmp/t_read-nonexistent-file/not-there.txt"
-#!END_NESL_rnx
+#!end_rnx
 ```
 
 ```json

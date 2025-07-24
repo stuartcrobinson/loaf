@@ -5,11 +5,11 @@
 ### 001-simple-file-write
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: abc]
+#!nesl [@three-char-SHA-256: abc]
 action = "file_write"
 path = "/tmp/001-simple-file-write/test.txt"
 content = "Hello, World!"
-#!END_NESL_abc
+#!end_abc
 ```
 
 ```json
@@ -40,23 +40,23 @@ content = "Hello, World!"
 ### 002-mixed-implemented-unimplemented
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: fw1]
+#!nesl [@three-char-SHA-256: fw1]
 action = "file_write"
 path = "/tmp/002-mixed-implemented-unimplemented/first.txt"
 content = "First file"
-#!END_NESL_fw1
+#!end_fw1
 
-#!NESL [@three-char-SHA-256: ex1]
+#!nesl [@three-char-SHA-256: ex1]
 action = "exec"
 code = "echo 'hello'"
 lang = "bash"
-#!END_NESL_ex1
+#!end_ex1
 
-#!NESL [@three-char-SHA-256: fw2]
+#!nesl [@three-char-SHA-256: fw2]
 action = "file_write"
 path = "/tmp/002-mixed-implemented-unimplemented/second.txt"
 content = "Second file"
-#!END_NESL_fw2
+#!end_fw2
 ```
 
 ```json
@@ -114,17 +114,17 @@ content = "Second file"
 ### 003-parse-error-with-valid-action
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: bad]
+#!nesl [@three-char-SHA-256: bad]
 action = "file_write"
 path = "/tmp/003-parse-error-with-valid-action/bad.txt"
 path = "/tmp/003-parse-error-with-valid-action/duplicate.txt"
-#!END_NESL_bad
+#!end_bad
 
-#!NESL [@three-char-SHA-256: gud]
+#!nesl [@three-char-SHA-256: gud]
 action = "file_write"
 path = "/tmp/003-parse-error-with-valid-action/good.txt"
 content = "Valid content"
-#!END_NESL_gud
+#!end_gud
 ```
 
 ```json
@@ -152,7 +152,7 @@ content = "Valid content"
     "errorType": "syntax",
     "message": "Duplicate key 'path' in block 'bad'",
     "blockStartLine": 1,
-    "neslContent": "#!NESL [@three-char-SHA-256: bad]\naction = \"file_write\"\npath = \"/tmp/003-parse-error-with-valid-action/bad.txt\"\npath = \"/tmp/003-parse-error-with-valid-action/duplicate.txt\"\n#!END_NESL_bad"
+    "neslContent": "#!nesl [@three-char-SHA-256: bad]\naction = \"file_write\"\npath = \"/tmp/003-parse-error-with-valid-action/bad.txt\"\npath = \"/tmp/003-parse-error-with-valid-action/duplicate.txt\"\n#!end_bad"
   }]
 }
 ```
@@ -162,10 +162,10 @@ content = "Valid content"
 ### 004-file-operation-failure
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: nop]
+#!nesl [@three-char-SHA-256: nop]
 action = "file_delete"
 path = "/tmp/004-file-operation-failure/does-not-exist.txt"
-#!END_NESL_nop
+#!end_nop
 ```
 
 ```json
@@ -210,16 +210,16 @@ This is just regular text without any NESL blocks.
 ### 006-file-read-success
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: rd1]
+#!nesl [@three-char-SHA-256: rd1]
 action = "file_write"
 path = "/tmp/006-file-read-success/read-test.txt"
 content = "Content to read later"
-#!END_NESL_rd1
+#!end_rd1
 
-#!NESL [@three-char-SHA-256: rd2]
+#!nesl [@three-char-SHA-256: rd2]
 action = "file_read"
 path = "/tmp/006-file-read-success/read-test.txt"
-#!END_NESL_rd2
+#!end_rd2
 ```
 
 ```json
@@ -260,17 +260,17 @@ path = "/tmp/006-file-read-success/read-test.txt"
 ### 007-file-move-success
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: mv1]
+#!nesl [@three-char-SHA-256: mv1]
 action = "file_write"
 path = "/tmp/007-file-move-success/source-file.txt"
 content = "File to be moved"
-#!END_NESL_mv1
+#!end_mv1
 
-#!NESL [@three-char-SHA-256: mv2]
+#!nesl [@three-char-SHA-256: mv2]
 action = "file_move"
 old_path = "/tmp/007-file-move-success/source-file.txt"
 new_path = "/tmp/007-file-move-success/destination-file.txt"
-#!END_NESL_mv2
+#!end_mv2
 ```
 
 ```json
@@ -312,18 +312,18 @@ new_path = "/tmp/007-file-move-success/destination-file.txt"
 ### 008-file-replace-text-single
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: rp1]
+#!nesl [@three-char-SHA-256: rp1]
 action = "file_write"
 path = "/tmp/008-file-replace-text-single/replace-single.txt"
 content = "Hello world! This is a test."
-#!END_NESL_rp1
+#!end_rp1
 
-#!NESL [@three-char-SHA-256: rp2]
+#!nesl [@three-char-SHA-256: rp2]
 action = "file_replace_text"
 path = "/tmp/008-file-replace-text-single/replace-single.txt"
 old_text = "world"
 new_text = "universe"
-#!END_NESL_rp2
+#!end_rp2
 ```
 
 ```json
@@ -366,18 +366,18 @@ new_text = "universe"
 ### 009-file-replace-all-text
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: ra1]
+#!nesl [@three-char-SHA-256: ra1]
 action = "file_write"
 path = "/tmp/009-file-replace-all-text/replace-all.txt"
 content = "foo bar foo baz foo"
-#!END_NESL_ra1
+#!end_ra1
 
-#!NESL [@three-char-SHA-256: ra2]
+#!nesl [@three-char-SHA-256: ra2]
 action = "file_replace_all_text"
 path = "/tmp/009-file-replace-all-text/replace-all.txt"
 old_text = "foo"
 new_text = "qux"
-#!END_NESL_ra2
+#!end_ra2
 ```
 
 ```json
@@ -420,26 +420,26 @@ new_text = "qux"
 ### 010-multiline-content-handling
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: ml1]
+#!nesl [@three-char-SHA-256: ml1]
 action = "file_write"
 path = "/tmp/010-multiline-content-handling/multiline.txt"
-content = <<'EOT_NESL_ml1'
+content = <<'EOT_ml1'
 Line one
 Line two
 Line three
-EOT_NESL_ml1
-#!END_NESL_ml1
+EOT_ml1
+#!end_ml1
 
-#!NESL [@three-char-SHA-256: ml2]
+#!nesl [@three-char-SHA-256: ml2]
 action = "file_replace_text"
 path = "/tmp/010-multiline-content-handling/multiline.txt"
-old_text = <<'EOT_NESL_ml2'
+old_text = <<'EOT_ml2'
 Line two
-EOT_NESL_ml2
-new_text = <<'EOT_NESL_ml2'
+EOT_ml2
+new_text = <<'EOT_ml2'
 Line TWO (modified)
-EOT_NESL_ml2
-#!END_NESL_ml2
+EOT_ml2
+#!end_ml2
 ```
 
 ```json
@@ -482,18 +482,18 @@ EOT_NESL_ml2
 ### 011-file-replace-text-multiple-occurrences-failure
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: rf1]
+#!nesl [@three-char-SHA-256: rf1]
 action = "file_write"
 path = "/tmp/011-file-replace-text-multiple-occurrences-failure/multiple-foo.txt"
 content = "foo bar foo baz"
-#!END_NESL_rf1
+#!end_rf1
 
-#!NESL [@three-char-SHA-256: rf2]
+#!nesl [@three-char-SHA-256: rf2]
 action = "file_replace_text"
 path = "/tmp/011-file-replace-text-multiple-occurrences-failure/multiple-foo.txt"
 old_text = "foo"
 new_text = "qux"
-#!END_NESL_rf2
+#!end_rf2
 ```
 
 ```json
@@ -533,19 +533,19 @@ new_text = "qux"
 ### 012-file-replace-all-text-with-count
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: rc1]
+#!nesl [@three-char-SHA-256: rc1]
 action = "file_write"
 path = "/tmp/012-file-replace-all-text-with-count/count-test.txt"
 content = "test test test"
-#!END_NESL_rc1
+#!end_rc1
 
-#!NESL [@three-char-SHA-256: rc2]
+#!nesl [@three-char-SHA-256: rc2]
 action = "file_replace_all_text"
 path = "/tmp/012-file-replace-all-text-with-count/count-test.txt"
 old_text = "test"
 new_text = "check"
 count = "2"
-#!END_NESL_rc2
+#!end_rc2
 ```
 
 ```json
@@ -586,23 +586,23 @@ count = "2"
 ### 013-file-move-overwrite-existing
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: ow1]
+#!nesl [@three-char-SHA-256: ow1]
 action = "file_write"
 path = "/tmp/013-file-move-overwrite-existing/move-source.txt"
 content = "source content"
-#!END_NESL_ow1
+#!end_ow1
 
-#!NESL [@three-char-SHA-256: ow2]
+#!nesl [@three-char-SHA-256: ow2]
 action = "file_write"
 path = "/tmp/013-file-move-overwrite-existing/move-dest.txt"
 content = "will be overwritten"
-#!END_NESL_ow2
+#!end_ow2
 
-#!NESL [@three-char-SHA-256: ow3]
+#!nesl [@three-char-SHA-256: ow3]
 action = "file_move"
 old_path = "/tmp/013-file-move-overwrite-existing/move-source.txt"
 new_path = "/tmp/013-file-move-overwrite-existing/move-dest.txt"
-#!END_NESL_ow3
+#!end_ow3
 ```
 
 ```json
@@ -658,25 +658,25 @@ new_path = "/tmp/013-file-move-overwrite-existing/move-dest.txt"
 ### 014-empty-old-text-validation
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: et1]
+#!nesl [@three-char-SHA-256: et1]
 action = "file_write"
 path = "/tmp/014-empty-old-text-validation/empty-replace.txt"
 content = "some content"
-#!END_NESL_et1
+#!end_et1
 
-#!NESL [@three-char-SHA-256: et2]
+#!nesl [@three-char-SHA-256: et2]
 action = "file_replace_text"
 path = "/tmp/014-empty-old-text-validation/empty-replace.txt"
 old_text = ""
 new_text = "replacement"
-#!END_NESL_et2
+#!end_et2
 
-#!NESL [@three-char-SHA-256: et3]
+#!nesl [@three-char-SHA-256: et3]
 action = "file_replace_all_text"
 path = "/tmp/014-empty-old-text-validation/empty-replace.txt"
 old_text = ""
 new_text = "replacement"
-#!END_NESL_et3
+#!end_et3
 ```
 
 ```json
@@ -727,10 +727,10 @@ new_text = "replacement"
 ### 015-file-read-nonexistent
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: rnx]
+#!nesl [@three-char-SHA-256: rnx]
 action = "file_read"
 path = "/tmp/015-file-read-nonexistent/does-not-exist-read.txt"
-#!END_NESL_rnx
+#!end_rnx
 ```
 
 ```json
@@ -755,17 +755,17 @@ path = "/tmp/015-file-read-nonexistent/does-not-exist-read.txt"
 ### 016-file-move-creates-parent-dirs
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: pd1]
+#!nesl [@three-char-SHA-256: pd1]
 action = "file_write"
 path = "/tmp/016-file-move-creates-parent-dirs/parent-test.txt"
 content = "moving to new dir"
-#!END_NESL_pd1
+#!end_pd1
 
-#!NESL [@three-char-SHA-256: pd2]
+#!nesl [@three-char-SHA-256: pd2]
 action = "file_move"
 old_path = "/tmp/016-file-move-creates-parent-dirs/parent-test.txt"
 new_path = "/tmp/016-file-move-creates-parent-dirs/new/deeply/nested/moved-file.txt"
-#!END_NESL_pd2
+#!end_pd2
 ```
 
 ```json
@@ -807,25 +807,25 @@ new_path = "/tmp/016-file-move-creates-parent-dirs/new/deeply/nested/moved-file.
 ### 017-files-read-multiple
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: fr1]
+#!nesl [@three-char-SHA-256: fr1]
 action = "file_write"
 path = "/tmp/017-files-read-multiple/first.txt"
 content = "First file content"
-#!END_NESL_fr1
+#!end_fr1
 
-#!NESL [@three-char-SHA-256: fr2]
+#!nesl [@three-char-SHA-256: fr2]
 action = "file_write"
 path = "/tmp/017-files-read-multiple/second.txt"
 content = "Second file content"
-#!END_NESL_fr2
+#!end_fr2
 
-#!NESL [@three-char-SHA-256: fr3]
+#!nesl [@three-char-SHA-256: fr3]
 action = "files_read"
-paths = <<'EOT_NESL_fr3'
+paths = <<'EOT_fr3'
 /tmp/017-files-read-multiple/first.txt
 /tmp/017-files-read-multiple/second.txt
-EOT_NESL_fr3
-#!END_NESL_fr3
+EOT_fr3
+#!end_fr3
 ```
 
 ```json
@@ -885,19 +885,19 @@ EOT_NESL_fr3
 ### 018-files-read-with-missing
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: fm1]
+#!nesl [@three-char-SHA-256: fm1]
 action = "file_write"
 path = "/tmp/018-files-read-with-missing/exists.txt"
 content = "This file exists"
-#!END_NESL_fm1
+#!end_fm1
 
-#!NESL [@three-char-SHA-256: fm2]
+#!nesl [@three-char-SHA-256: fm2]
 action = "files_read"
-paths = <<'EOT_NESL_fm2'
+paths = <<'EOT_fm2'
 /tmp/018-files-read-with-missing/exists.txt
 /tmp/018-files-read-with-missing/missing.txt
-EOT_NESL_fm2
-#!END_NESL_fm2
+EOT_fm2
+#!end_fm2
 ```
 
 ```json

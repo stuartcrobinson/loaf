@@ -5,13 +5,13 @@
 ### 001-single-valid-file-create-action
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: abc]
+#!nesl [@three-char-SHA-256: abc]
 action = "file_write"
 path = "/tmp/test.txt"
-content = <<'EOT_NESL_abc'
+content = <<'EOT_abc'
 Hello world!
-EOT_NESL_abc
-#!END_NESL_abc
+EOT_abc
+#!end_abc
 ````
 
 ```json
@@ -42,16 +42,16 @@ EOT_NESL_abc
 ### 002-multiple-blocks-with-one-invalid
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: gd1]
+#!nesl [@three-char-SHA-256: gd1]
 action = "file_write"
 path = "/tmp/good.txt"
 content = "valid"
-#!END_NESL_gd1
+#!end_gd1
 
-#!NESL [@three-char-SHA-256: bad]
+#!nesl [@three-char-SHA-256: bad]
 action = "unknown_action"
 path = "/tmp/bad.txt"
-#!END_NESL_bad
+#!end_bad
 ```
 
 ```json
@@ -74,7 +74,7 @@ path = "/tmp/bad.txt"
     "errorType": "validation",
     "message": "Unknown action: unknown_action",
     "blockStartLine": 7,
-    "neslContent": "#!NESL [@three-char-SHA-256: bad]\naction = \"unknown_action\"\npath = \"/tmp/bad.txt\"\n#!END_NESL_bad"
+    "neslContent": "#!nesl [@three-char-SHA-256: bad]\naction = \"unknown_action\"\npath = \"/tmp/bad.txt\"\n#!end_bad"
   }],
   "summary": {
     "totalBlocks": 2,
@@ -89,10 +89,10 @@ path = "/tmp/bad.txt"
 ### 003-missing-required-parameter
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: mis]
+#!nesl [@three-char-SHA-256: mis]
 action = "file_write"
 content = "missing path"
-#!END_NESL_mis
+#!end_mis
 ```
 
 ```json
@@ -104,7 +104,7 @@ content = "missing path"
     "errorType": "validation",
     "message": "Missing required parameter: path",
     "blockStartLine": 1,
-    "neslContent": "#!NESL [@three-char-SHA-256: mis]\naction = \"file_write\"\ncontent = \"missing path\"\n#!END_NESL_mis"
+    "neslContent": "#!nesl [@three-char-SHA-256: mis]\naction = \"file_write\"\ncontent = \"missing path\"\n#!end_mis"
   }],
   "summary": {
     "totalBlocks": 1,
@@ -119,12 +119,12 @@ content = "missing path"
 ### 004-type-conversion-with-boolean-and-integer
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: typ]
+#!nesl [@three-char-SHA-256: typ]
 action = "exec"
 code = "print('hi')"
 lang = "python"
 cwd = "/tmp"
-#!END_NESL_typ
+#!end_typ
 ```
 
 ```json

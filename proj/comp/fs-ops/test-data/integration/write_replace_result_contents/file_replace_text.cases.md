@@ -5,20 +5,20 @@
 ### 001-simple-text-replacement
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: st1]
+#!nesl [@three-char-SHA-256: st1]
 action = "file_write"
 path = "/tmp/t_simple-text-replacement/replace-test.txt"
 content = "Hello World"
-#!END_NESL_st1
+#!end_st1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: rpl]
+#!nesl [@three-char-SHA-256: rpl]
 action = "file_replace_text"
 path = "/tmp/t_simple-text-replacement/replace-test.txt"
 old_text = "Hello"
 new_text = "Goodbye"
-#!END_NESL_rpl
+#!end_rpl
 ```
 
 ```json
@@ -38,21 +38,21 @@ Goodbye World
 ### 002-replace-with-count-limit
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: rc1]
+#!nesl [@three-char-SHA-256: rc1]
 action = "file_write"
 path = "/tmp/t_replace-with-count-limit/multi-replace.txt"
 content = "foo bar foo baz foo qux foo"
-#!END_NESL_rc1
+#!end_rc1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: cnt]
+#!nesl [@three-char-SHA-256: cnt]
 action = "file_replace_all_text"
 path = "/tmp/t_replace-with-count-limit/multi-replace.txt"
 old_text = "foo"
 new_text = "bar"
 count = "2"
-#!END_NESL_cnt
+#!end_cnt
 ```
 
 ```json
@@ -65,20 +65,20 @@ count = "2"
 ### 003-replace-text-not-found
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: nf1]
+#!nesl [@three-char-SHA-256: nf1]
 action = "file_write"
 path = "/tmp/t_replace-text-not-found/no-match.txt"
 content = "This file has no matches"
-#!END_NESL_nf1
+#!end_nf1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: nfr]
+#!nesl [@three-char-SHA-256: nfr]
 action = "file_replace_text"
 path = "/tmp/t_replace-text-not-found/no-match.txt"
 old_text = "nonexistent"
 new_text = "replacement"
-#!END_NESL_nfr
+#!end_nfr
 ```
 
 ```json
@@ -91,12 +91,12 @@ new_text = "replacement"
 ### 004-replace-in-nonexistent-file
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: rnf]
+#!nesl [@three-char-SHA-256: rnf]
 action = "file_replace_text"
 path = "/tmp/t_replace-in-nonexistent-file/does-not-exist-replace.txt"
 old_text = "text"
 new_text = "other"
-#!END_NESL_rnf
+#!end_rnf
 ```
 
 ```json
@@ -109,10 +109,10 @@ new_text = "other"
 ### 005-multiline-replacement
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: ml1]
+#!nesl [@three-char-SHA-256: ml1]
 action = "file_write"
 path = "/tmp/t_multiline-replacement/multiline-replace.txt"
-content = <<'EOT_NESL_ml1'
+content = <<'EOT_ml1'
 export function oldName() {
   console.log('oldName');
   return oldName;
@@ -123,27 +123,27 @@ function oldName() {
 }
 
 const x = oldName();
-EOT_NESL_ml1
-#!END_NESL_ml1
+EOT_ml1
+#!end_ml1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: mlr]
+#!nesl [@three-char-SHA-256: mlr]
 action = "file_replace_text"
 path = "/tmp/t_multiline-replacement/multiline-replace.txt"
-old_text = <<'EOT_NESL_mlr'
+old_text = <<'EOT_mlr'
 export function oldName() {
   console.log('oldName');
   return oldName;
 }
-EOT_NESL_mlr
-new_text = <<'EOT_NESL_mlr'
+EOT_mlr
+new_text = <<'EOT_mlr'
 export function newName() {
   console.log('newName');
   return newName;
 }
-EOT_NESL_mlr
-#!END_NESL_mlr
+EOT_mlr
+#!end_mlr
 ```
 
 ```json
@@ -172,20 +172,20 @@ const x = oldName();
 ### 006-empty-old-text-error
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: em1]
+#!nesl [@three-char-SHA-256: em1]
 action = "file_write"
 path = "/tmp/t_empty-old-text-error/empty-search.txt"
 content = "Some content here"
-#!END_NESL_em1
+#!end_em1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: emt]
+#!nesl [@three-char-SHA-256: emt]
 action = "file_replace_text"
 path = "/tmp/t_empty-old-text-error/empty-search.txt"
 old_text = ""
 new_text = "something"
-#!END_NESL_emt
+#!end_emt
 ```
 
 ```json
@@ -198,20 +198,20 @@ new_text = "something"
 ### 007-file-replace-text-multiple-occurrences
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: mo1]
+#!nesl [@three-char-SHA-256: mo1]
 action = "file_write"
 path = "/tmp/t_file-replace-text-multiple-occurrences/multiple-occurrences.txt"
 content = "duplicate text with duplicate word and duplicate again"
-#!END_NESL_mo1
+#!end_mo1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: mul]
+#!nesl [@three-char-SHA-256: mul]
 action = "file_replace_text"
 path = "/tmp/t_file-replace-text-multiple-occurrences/multiple-occurrences.txt"
 old_text = "duplicate"
 new_text = "unique"
-#!END_NESL_mul
+#!end_mul
 ```
 
 ```json
@@ -224,20 +224,20 @@ new_text = "unique"
 ### 008-file-replace-all-text-no-count
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: ra1]
+#!nesl [@three-char-SHA-256: ra1]
 action = "file_write"
 path = "/tmp/t_file-replace-all-text-no-count/replace-all.txt"
 content = "foo bar foo baz foo"
-#!END_NESL_ra1
+#!end_ra1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: all]
+#!nesl [@three-char-SHA-256: all]
 action = "file_replace_all_text"
 path = "/tmp/t_file-replace-all-text-no-count/replace-all.txt"
 old_text = "foo"
 new_text = "bar"
-#!END_NESL_all
+#!end_all
 ```
 
 ```json
@@ -257,21 +257,21 @@ bar bar bar baz bar
 ### 009-file-replace-all-text-count-mismatch
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: cm1]
+#!nesl [@three-char-SHA-256: cm1]
 action = "file_write"
 path = "/tmp/t_file-replace-all-text-count-mismatch/count-mismatch.txt"
 content = "test this test case"
-#!END_NESL_cm1
+#!end_cm1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: mis]
+#!nesl [@three-char-SHA-256: mis]
 action = "file_replace_all_text"
 path = "/tmp/t_file-replace-all-text-count-mismatch/count-mismatch.txt"
 old_text = "test"
 new_text = "check"
 count = "5"
-#!END_NESL_mis
+#!end_mis
 ```
 
 ```json
@@ -284,10 +284,10 @@ count = "5"
 ### 010-complex-multiline-multiple-occurrences
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: cm1]
+#!nesl [@three-char-SHA-256: cm1]
 action = "file_write"
 path = "/tmp/t_complex-multiline-multiple-occurrences/listener.txt"
-content = <<'EOT_NESL_cm1'
+content = <<'EOT_cm1'
 async function startListener(config) {
   const watcher = createWatcher();
   console.log('Starting listener');
@@ -303,29 +303,29 @@ async function startListener(altConfig) {
   // Different implementation
   return createAltWatcher();
 }
-EOT_NESL_cm1
-#!END_NESL_cm1
+EOT_cm1
+#!end_cm1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: cm2]
+#!nesl [@three-char-SHA-256: cm2]
 action = "file_replace_text"
 path = "/tmp/t_complex-multiline-multiple-occurrences/listener.txt"
-old_text = <<'EOT_NESL_cm2'
+old_text = <<'EOT_cm2'
 async function startListener(config) {
   const watcher = createWatcher();
   console.log('Starting listener');
   return watcher;
 }
-EOT_NESL_cm2
-new_text = <<'EOT_NESL_cm2'
+EOT_cm2
+new_text = <<'EOT_cm2'
 async function startListener(config) {
   const watcher = createWatcher(config);
   console.log('Starting listener with config');
   return watcher;
 }
-EOT_NESL_cm2
-#!END_NESL_cm2
+EOT_cm2
+#!end_cm2
 ```
 
 ```json
@@ -359,10 +359,10 @@ async function startListener(altConfig) {
 ### 011-whitespace-sensitive-replacement
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: ws1]
+#!nesl [@three-char-SHA-256: ws1]
 action = "file_write"
 path = "/tmp/t_whitespace-sensitive-replacement/indented.txt"
-content = <<'EOT_NESL_ws1'
+content = <<'EOT_ws1'
 class FileProcessor {
   processFile(path) {
     if (path) {
@@ -374,29 +374,29 @@ class FileProcessor {
     return paths.map(p => this.processFile(p));
   }
 }
-EOT_NESL_ws1
-#!END_NESL_ws1
+EOT_ws1
+#!end_ws1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: ws2]
+#!nesl [@three-char-SHA-256: ws2]
 action = "file_replace_text"
 path = "/tmp/t_whitespace-sensitive-replacement/indented.txt"
-old_text = <<'EOT_NESL_ws2'
+old_text = <<'EOT_ws2'
   processFile(path) {
     if (path) {
       return readFile(path);
     }
   }
-EOT_NESL_ws2
-new_text = <<'EOT_NESL_ws2'
+EOT_ws2
+new_text = <<'EOT_ws2'
   async processFile(path) {
     if (path) {
       return await readFile(path);
     }
   }
-EOT_NESL_ws2
-#!END_NESL_ws2
+EOT_ws2
+#!end_ws2
 ```
 
 ```json
@@ -426,10 +426,10 @@ class FileProcessor {
 ### 012-partial-match-should-not-replace
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: pm1]
+#!nesl [@three-char-SHA-256: pm1]
 action = "file_write"
 path = "/tmp/t_partial-match-should-not-replace/partial.txt"
-content = <<'EOT_NESL_pm1'
+content = <<'EOT_pm1'
 export function validateInput(data) {
   if (!data) throw new Error('Invalid input');
   return true;
@@ -440,24 +440,24 @@ export function validateInputWithLogging(data) {
   if (!data) throw new Error('Invalid input');
   return true;
 }
-EOT_NESL_pm1
-#!END_NESL_pm1
+EOT_pm1
+#!end_pm1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: pm2]
+#!nesl [@three-char-SHA-256: pm2]
 action = "file_replace_text"
 path = "/tmp/t_partial-match-should-not-replace/partial.txt"
-old_text = <<'EOT_NESL_pm2'
+old_text = <<'EOT_pm2'
 export function validateInput(data) {
   if (!data) throw new Error('Invalid input');
   return true;
 }
 
 export function validateInputWithLogging(data) {
-EOT_NESL_pm2
+EOT_pm2
 new_text = "// This should not match"
-#!END_NESL_pm2
+#!end_pm2
 ```
 
 ```json
@@ -481,10 +481,10 @@ new_text = "// This should not match"
 ### 013-exact-newline-matching
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: nl1]
+#!nesl [@three-char-SHA-256: nl1]
 action = "file_write"
 path = "/tmp/t_exact-newline-matching/newlines.txt"
-content = <<'EOT_NESL_nl1'
+content = <<'EOT_nl1'
 function one() {
   return 1;
 }
@@ -493,26 +493,26 @@ function one() {
 function two() {
   return 2;
 }
-EOT_NESL_nl1
-#!END_NESL_nl1
+EOT_nl1
+#!end_nl1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: nl2]
+#!nesl [@three-char-SHA-256: nl2]
 action = "file_replace_text"
 path = "/tmp/t_exact-newline-matching/newlines.txt"
-old_text = <<'EOT_NESL_nl2'
+old_text = <<'EOT_nl2'
 }
 
 function two() {
-EOT_NESL_nl2
-new_text = <<'EOT_NESL_nl2'
+EOT_nl2
+new_text = <<'EOT_nl2'
 }
 
 // Added comment
 function two() {
-EOT_NESL_nl2
-#!END_NESL_nl2
+EOT_nl2
+#!end_nl2
 ```
 
 ```json
@@ -525,10 +525,10 @@ EOT_NESL_nl2
 ### 014-complex-code-block-replacement
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: cb1]
+#!nesl [@three-char-SHA-256: cb1]
 action = "file_write"
 path = "/tmp/t_complex-code-block-replacement/complex.txt"
-content = <<'EOT_NESL_cb1'
+content = <<'EOT_cb1'
 const handler = {
   async process(data) {
     const result = await transform(data);
@@ -542,15 +542,15 @@ const handler = {
     return data != null;
   }
 };
-EOT_NESL_cb1
-#!END_NESL_cb1
+EOT_cb1
+#!end_cb1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: cb2]
+#!nesl [@three-char-SHA-256: cb2]
 action = "file_replace_all_text"
 path = "/tmp/t_complex-code-block-replacement/complex.txt"
-old_text = <<'EOT_NESL_cb2'
+old_text = <<'EOT_cb2'
   async process(data) {
     const result = await transform(data);
     if (result.error) {
@@ -558,8 +558,8 @@ old_text = <<'EOT_NESL_cb2'
     }
     return result.value;
   }
-EOT_NESL_cb2
-new_text = <<'EOT_NESL_cb2'
+EOT_cb2
+new_text = <<'EOT_cb2'
   async process(data) {
     try {
       const result = await transform(data);
@@ -572,8 +572,8 @@ new_text = <<'EOT_NESL_cb2'
       throw e;
     }
   }
-EOT_NESL_cb2
-#!END_NESL_cb2
+EOT_cb2
+#!end_cb2
 ```
 
 ```json
@@ -610,20 +610,20 @@ const handler = {
 ### 015-trailing-whitespace-sensitivity
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: tw1]
+#!nesl [@three-char-SHA-256: tw1]
 action = "file_write"
 path = "/tmp/t_trailing-whitespace-sensitivity/trailing.txt"
 content = "function test() {  \n  return true;\n}\n"
-#!END_NESL_tw1
+#!end_tw1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: tw2]
+#!nesl [@three-char-SHA-256: tw2]
 action = "file_replace_text"
 path = "/tmp/t_trailing-whitespace-sensitivity/trailing.txt"
 old_text = "function test() {\n  return true;\n}"
 new_text = "function test() {\n  return false;\n}"
-#!END_NESL_tw2
+#!end_tw2
 ```
 
 ```json
@@ -636,10 +636,10 @@ new_text = "function test() {\n  return false;\n}"
 ### 016-file-replace-text-multiple-identical-values
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: mv1]
+#!nesl [@three-char-SHA-256: mv1]
 action = "file_write"
 path = "/tmp/t_file-replace-text-multiple-identical-values/app.js"
-content = <<'EOT_NESL_mv1'
+content = <<'EOT_mv1'
 // Application code
 function process() {
   const value = 100;
@@ -656,19 +656,19 @@ function validate() {
   const value = 100;
   return value > 0;
 }
-EOT_NESL_mv1
-#!END_NESL_mv1
+EOT_mv1
+#!end_mv1
 
-#!NESL [@three-char-SHA-256: mv2]
+#!nesl [@three-char-SHA-256: mv2]
 action = "file_replace_text"
 path = "/tmp/t_file-replace-text-multiple-identical-values/app.js"
-old_text = <<'EOT_NESL_mv2'
+old_text = <<'EOT_mv2'
   const value = 100;
-EOT_NESL_mv2
-new_text = <<'EOT_NESL_mv2'
+EOT_mv2
+new_text = <<'EOT_mv2'
   const value = 999;
-EOT_NESL_mv2
-#!END_NESL_mv2
+EOT_mv2
+#!end_mv2
 ```
 
 ```json
@@ -681,10 +681,10 @@ EOT_NESL_mv2
 ### 017-file-replace-text-section-not-found
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: sn1]
+#!nesl [@three-char-SHA-256: sn1]
 action = "file_write"
 path = "/tmp/t_file-replace-text-section-not-found/readme.md"
-content = <<'EOT_NESL_sn1'
+content = <<'EOT_sn1'
 # Project README
 
 This is a sample project.
@@ -698,25 +698,25 @@ Run the following command:
 
 Start the application with:
 - npm start
-EOT_NESL_sn1
-#!END_NESL_sn1
+EOT_sn1
+#!end_sn1
 ```
 
 ```sh nesl
-#!NESL [@three-char-SHA-256: sn2]
+#!nesl [@three-char-SHA-256: sn2]
 action = "file_replace_text"
 path = "/tmp/t_file-replace-text-section-not-found/readme.md"
-old_text = <<'EOT_NESL_sn2'
+old_text = <<'EOT_sn2'
 ## Configuration
 
 Configure the app by editing config.json
-EOT_NESL_sn2
-new_text = <<'EOT_NESL_sn2'
+EOT_sn2
+new_text = <<'EOT_sn2'
 ## Configuration
 
 Configure the app by editing settings.yaml
-EOT_NESL_sn2
-#!END_NESL_sn2
+EOT_sn2
+#!end_sn2
 ```
 
 ```json

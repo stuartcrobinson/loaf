@@ -2,11 +2,11 @@
 
 ## Basic print
 ```sh nesl
-#!NESL [@three-char-SHA-256: p1y]
+#!nesl [@three-char-SHA-256: p1y]
 action = "exec"
 lang = "python"
 code = "print('Hello from Python')"
-#!END_NESL_p1y
+#!end_p1y
 ```
 
 ```json
@@ -20,15 +20,15 @@ code = "print('Hello from Python')"
 
 ## Multi-line with loops
 ```sh nesl
-#!NESL [@three-char-SHA-256: p2y]
+#!nesl [@three-char-SHA-256: p2y]
 action = "exec"
 lang = "python"
-code = <<'EOT_NESL_p2y'
+code = <<'EOT_p2y'
 numbers = [1, 2, 3]
 for n in numbers:
     print(f"Number: {n}")
-EOT_NESL_p2y
-#!END_NESL_p2y
+EOT_p2y
+#!end_p2y
 ```
 
 ```json
@@ -42,15 +42,15 @@ EOT_NESL_p2y
 
 ## Import and use module
 ```sh nesl
-#!NESL [@three-char-SHA-256: p3y]
+#!nesl [@three-char-SHA-256: p3y]
 action = "exec"
 lang = "python"
-code = <<'EOT_NESL_p3y'
+code = <<'EOT_p3y'
 import json
 data = {"status": "ok", "items": [1, 2, 3]}
 print(json.dumps(data))
-EOT_NESL_p3y
-#!END_NESL_p3y
+EOT_p3y
+#!end_p3y
 ```
 
 ```json
@@ -64,11 +64,11 @@ EOT_NESL_p3y
 
 ## Syntax error
 ```sh nesl
-#!NESL [@three-char-SHA-256: p4y]
+#!nesl [@three-char-SHA-256: p4y]
 action = "exec"
 lang = "python"
 code = "print('unclosed string"
-#!END_NESL_p4y
+#!end_p4y
 ```
 
 ```json
@@ -82,16 +82,16 @@ code = "print('unclosed string"
 
 ## Exception handling
 ```sh nesl
-#!NESL [@three-char-SHA-256: p5y]
+#!nesl [@three-char-SHA-256: p5y]
 action = "exec"
 lang = "python"
-code = <<'EOT_NESL_p5y'
+code = <<'EOT_p5y'
 try:
     1 / 0
 except ZeroDivisionError:
     print("Caught division by zero")
-EOT_NESL_p5y
-#!END_NESL_p5y
+EOT_p5y
+#!end_p5y
 ```
 
 ```json
@@ -105,15 +105,15 @@ EOT_NESL_p5y
 
 ## Sys.exit with code
 ```sh nesl
-#!NESL [@three-char-SHA-256: p6y]
+#!nesl [@three-char-SHA-256: p6y]
 action = "exec"
 lang = "python"
-code = <<'EOT_NESL_p6y'
+code = <<'EOT_p6y'
 import sys
 print("Exiting with code 5")
 sys.exit(5)
-EOT_NESL_p6y
-#!END_NESL_p6y
+EOT_p6y
+#!end_p6y
 ```
 
 ```json
@@ -127,15 +127,15 @@ EOT_NESL_p6y
 
 ## Working directory
 ```sh nesl
-#!NESL [@three-char-SHA-256: p7y]
+#!nesl [@three-char-SHA-256: p7y]
 action = "exec"
 lang = "python"
-code = <<'EOT_NESL_p7y'
+code = <<'EOT_p7y'
 import os
 print(os.getcwd())
-EOT_NESL_p7y
+EOT_p7y
 cwd = "/tmp"
-#!END_NESL_p7y
+#!end_p7y
 ```
 
 ```json
