@@ -34,7 +34,7 @@ equivalent json:
 ## Tools
 
 ### `file_write` - Create/overwrite file
-```sh
+```sh nesl
 #!nesl [@three-char-SHA-256: fw1]
 action = "file_write"
 path = "/home/user/script.py"
@@ -46,7 +46,7 @@ EOT_fw1
 ```
 
 ### `file_replace_text` - Replace one occurrence
-```sh
+```sh nesl
 #!nesl [@three-char-SHA-256: fr2]
 action = "file_replace_text"
 path = "/etc/config.ini"
@@ -60,7 +60,7 @@ EOT_fr2
 ```
 
 ### `file_read` - Read single file
-```sh
+```sh nesl
 #!nesl [@three-char-SHA-256: rd3]
 action = "file_read"
 path = "/var/log/app.log"
@@ -68,7 +68,7 @@ path = "/var/log/app.log"
 ```
 
 ### `files_read` - Read multiple files
-```sh
+```sh nesl
 #!nesl [@three-char-SHA-256: rm4]
 action = "files_read"
 paths = <<'EOT_rm4'

@@ -42,41 +42,50 @@ done
 
 
 
+# proj/comp/orch/src/index.ts
+# proj/comp/orch/src/createStarterConfig.ts
+# proj/comp/fs-ops/src/index.ts
+# proj/comp/exec/src/index.ts
+# proj/comp/hooks/src/index.ts
+# proj/comp/hooks/src/parseYamlConfig.ts
+# proj/comp/hooks/src/validateConfig.ts
+# unified-design.yaml
+# proj/comp/fs-guard/doc/ABSTRACT.md proj/comp/fs-guard/doc/ARCH.md proj/comp/fs-guard/doc/TODO.md
+
+# /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+# /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
+# /Users/stuart/repos/loaf/proj/comp/exec/src/index.ts
+# /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
+# /Users/stuart/repos/loaf/proj/comp/fs-guard/src/index.ts
+# /Users/stuart/repos/loaf/proj/comp/fs-guard/src/types.ts
+# /Users/stuart/repos/loaf/proj/comp/fs-guard/src/FsGuard.ts
+# /Users/stuart/repos/loaf/proj/comp/orch/src/loadConfig.ts
+# /Users/stuart/repos/loaf/proj/comp/orch/src/types.ts
+# /Users/stuart/repos/loaf/loaf.yml
+# /Users/stuart/repos/loaf/proj/comp/fs-guard/test/unit/FsGuard.test.ts
+# /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/minimal.test.ts
+# /Users/stuart/repos/loaf/proj/comp/orch/test/integration/fs-guard-integration.test.ts
+
+# proj/comp/orch/src/types.ts
+# proj/comp/fs-guard/src/types.ts
+# proj/comp/fs-guard/src/FsGuard.ts
+# proj/comp/fs-ops/src/index.ts
+# proj/comp/exec/src/index.ts
+# proj/comp/orch/src/loadConfig.ts
+# proj/comp/orch/src/index.ts
+# use-listener/instruct.md
+
 file_list=$(cat <<'EOF'
 
 
-proj/comp/orch/src/index.ts
-proj/comp/orch/src/createStarterConfig.ts
-proj/comp/fs-ops/src/index.ts
-proj/comp/exec/src/index.ts
-proj/comp/hooks/src/index.ts
-proj/comp/hooks/src/parseYamlConfig.ts
-proj/comp/hooks/src/validateConfig.ts
-unified-design.yaml
-proj/comp/fs-guard/doc/ABSTRACT.md proj/comp/fs-guard/doc/ARCH.md proj/comp/fs-guard/doc/TODO.md
 
-/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/exec/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/fs-guard/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/fs-guard/src/types.ts
-/Users/stuart/repos/loaf/proj/comp/fs-guard/src/FsGuard.ts
-/Users/stuart/repos/loaf/proj/comp/orch/src/loadConfig.ts
-/Users/stuart/repos/loaf/proj/comp/orch/src/types.ts
-/Users/stuart/repos/loaf/loaf.yml
-/Users/stuart/repos/loaf/proj/comp/fs-guard/test/unit/FsGuard.test.ts
-/Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/minimal.test.ts
-/Users/stuart/repos/loaf/proj/comp/orch/test/integration/fs-guard-integration.test.ts
 
-proj/comp/orch/src/types.ts
-proj/comp/fs-guard/src/types.ts
-proj/comp/fs-guard/src/FsGuard.ts
-proj/comp/fs-ops/src/index.ts
-proj/comp/exec/src/index.ts
-proj/comp/orch/src/loadConfig.ts
-proj/comp/orch/src/index.ts
-use-listener/instruct.md
+
+proj/comp/fs-ops/src/index.ts 
+proj/comp/fs-ops/test/integration/write_action_result.test.ts
+proj/comp/fs-guard/tsconfig.json 
+package.json
+tsconfig.json
 
 EOF
 )

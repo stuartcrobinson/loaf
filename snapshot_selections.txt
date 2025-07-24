@@ -1,455 +1,3 @@
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
-import type { LoafAction, ParseResult, ParseError } from '../../nesl-action-parser/src/index.js';
-import { parseNeslResponse } from '../../nesl-action-parser/src/index.js';
-import type { FileOpResult } from '../../fs-ops/src/index.js';
-import type { HooksConfig, HookContext, HookResult } from '../../hooks/src/index.js';
-import { HooksManager } from '../../hooks/src/index.js';
-import { load as loadYaml } from 'js-yaml';
-import { readFile, access } from 'fs/promises';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { createStarterConfig } from './createStarterConfig.js';
-
-export interface ExecutionResult {
-  success: boolean;
-  totalBlocks: number;
-  executedActions: number;
-  results: ActionResult[];
-  parseErrors: ParseError[];
-  fatalError?: string;
-  hookErrors?: {
-    before?: string[];
-    after?: string[];
-  };
-  configCreated?: boolean;
-  debug?: {
-    parseDebug?: any;
-  };
-}
-
-export interface ActionResult {
-  seq: number;
-  blockId: string;
-  action: string;
-  params: Record<string, any>;
-  success: boolean;
-  error?: string;
-  data?: any;
-}
-
-export interface LoafOptions {
-  repoPath?: string;
-  gitCommit?: boolean;
-  hooks?: HooksConfig;
-  enableHooks?: boolean;
-  createConfigIfMissing?: boolean;
-}
-
-export class Loaf {
-  private options: LoafOptions;
-  private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>> | null = null;
-  private hooksManager: HooksManager | null = null;
-
-  constructor(options: LoafOptions = {}) {
-    this.options = {
-      repoPath: options.repoPath || process.cwd(),
-      gitCommit: options.gitCommit ?? true,
-      hooks: options.hooks,
-      enableHooks: options.enableHooks ?? true,
-      createConfigIfMissing: options.createConfigIfMissing ?? false
-    };
-  }
-
-  /**
-   * Parse and execute all NESL blocks in LLM output
-   * Executes all valid actions sequentially, collecting both successes and failures
-   */
-  async execute(llmOutput: string): Promise<ExecutionResult> {
-    const hookErrors: ExecutionResult['hookErrors'] = {};
-    let configCreated = false;
-
-    try {
-      // Initialize hooks if enabled and not already initialized
-      if (this.options.enableHooks && !this.hooksManager) {
-        try {
-          const initResult = await this.initializeHooks();
-          configCreated = initResult.configCreated || false;
-        } catch (error) {
-          return {
-            success: false,
-            totalBlocks: 0,
-            executedActions: 0,
-            results: [],
-            parseErrors: [],
-            fatalError: `Failed to initialize hooks: ${error instanceof Error ? error.message : String(error)}`
-          };
-        }
-      }
-
-      // Run before hooks
-      if (this.hooksManager) {
-        try {
-          const beforeResult = await this.hooksManager.runBefore();
-          if (!beforeResult.success) {
-            // Before hook failure is fatal
-            return {
-              success: false,
-              totalBlocks: 0,
-              executedActions: 0,
-              results: [],
-              parseErrors: [],
-              hookErrors: {
-                before: beforeResult.errors?.map(e => `${e.command}: ${e.error}`) || ['Unknown before hook error']
-              },
-              fatalError: 'Before hooks failed - aborting execution'
-            };
-          }
-        } catch (error) {
-          return {
-            success: false,
-            totalBlocks: 0,
-            executedActions: 0,
-            results: [],
-            parseErrors: [],
-            fatalError: `Before hooks threw unexpected error: ${error instanceof Error ? error.message : String(error)}`
-          };
-        }
-      }
-
-      // Parse NESL blocks
-      const parseResult = await parseNeslResponse(llmOutput);
-
-      // Debug info captured in parseResult.debug
-
-      // Initialize executors if needed
-      if (!this.executors) {
-        try {
-          await this.initializeExecutors();
-        } catch (error) {
-          return {
-            success: false,
-            totalBlocks: parseResult.summary.totalBlocks,
-            executedActions: 0,
-            results: [],
-            parseErrors: parseResult.errors,
-            fatalError: `Failed to initialize executors: ${error instanceof Error ? error.message : String(error)}`
-          };
-        }
-      }
-
-      // Execute each valid action sequentially
-      const results: ActionResult[] = [];
-      let seq = 1;
-
-      for (const action of parseResult.actions) {
-        const result = await this.executeAction(action, seq++);
-        results.push(result);
-      }
-
-      // Calculate execution success (before considering after hooks)
-      const allActionsSucceeded = results.every(r => r.success);
-      const noParseErrors = parseResult.errors.length === 0;
-      const executionSuccess = allActionsSucceeded && noParseErrors;
-
-      // Run after hooks with context
-      if (this.hooksManager) {
-        try {
-          // Build rich context for hooks
-          const modifiedFiles = new Set<string>();
-          const operations: string[] = [];
-          const errors: string[] = [];
-
-          for (const result of results) {
-            if (result.action.startsWith('file_') && result.params.path) {
-              modifiedFiles.add(result.params.path);
-            }
-
-            operations.push(`${result.action}${result.success ? '' : ' (failed)'}`);
-
-            if (!result.success && result.error) {
-              errors.push(`${result.action}: ${result.error}`);
-            }
-          }
-
-          const afterContext: HookContext = {
-            success: executionSuccess,
-            executedActions: results.length,
-            totalBlocks: parseResult.summary.totalBlocks,
-            modifiedFiles: Array.from(modifiedFiles).join(','),
-            operations: operations.join(','),
-            errors: errors.join('; '),
-            errorCount: errors.length
-          };
-
-          const afterResult = await this.hooksManager.runAfter(afterContext);
-          if (!afterResult.success) {
-            // After hook failure is non-fatal but recorded
-            hookErrors.after = afterResult.errors?.map(e => `${e.command}: ${e.error}`) || ['Unknown after hook error'];
-          }
-        } catch (error) {
-          // After hook unexpected errors are also non-fatal
-          hookErrors.after = [`After hooks threw unexpected error: ${error instanceof Error ? error.message : String(error)}`];
-        }
-      }
-
-      return {
-        success: executionSuccess && !hookErrors.after, // After hook errors affect overall success
-        totalBlocks: parseResult.summary.totalBlocks,
-        executedActions: results.length,
-        results,
-        parseErrors: parseResult.errors,
-        ...(Object.keys(hookErrors).length > 0 && { hookErrors }),
-        ...(configCreated && { configCreated }),
-        debug: {
-          parseDebug: parseResult.debug
-        }
-      };
-
-    } catch (error) {
-      // Only truly unexpected errors should reach here
-      return {
-        success: false,
-        totalBlocks: 0,
-        executedActions: 0,
-        results: [],
-        parseErrors: [],
-        fatalError: `Unexpected error in execute: ${error instanceof Error ? error.message : String(error)}`
-      };
-    }
-  }
-
-  /**
-   * Initialize hooks manager with configuration
-   * Loads from options or loaf.yml file
-   */
-  private async initializeHooks(): Promise<{ configCreated: boolean }> {
-    let configCreated = false;
-
-    if (this.options.hooks) {
-      // Use provided configuration
-      // Wrap the hooks in the expected HooksConfig structure
-      const hooksConfig: HooksConfig = {
-        hooks: this.options.hooks,
-        vars: {}
-      };
-      this.hooksManager = new HooksManager(hooksConfig, this.options.repoPath);
-    } else {
-      // Try to load from loaf.yml
-      const loafYmlPath = join(this.options.repoPath!, 'loaf.yml');
-      try {
-        await access(loafYmlPath);
-        this.hooksManager = new HooksManager(undefined, this.options.repoPath);
-        await this.hooksManager.loadAndSetConfig(loafYmlPath);
-        // Don't create a new instance - loadAndSetConfig updates the existing one
-      } catch (error: any) {
-        if (error.code === 'ENOENT' && this.options.createConfigIfMissing) {
-          // Create starter config
-          configCreated = await createStarterConfig(this.options.repoPath!);
-          if (configCreated) {
-            // Load the newly created config
-            this.hooksManager = new HooksManager(undefined, this.options.repoPath);
-            await this.hooksManager.loadAndSetConfig(loafYmlPath);
-          }
-        }
-        // If not ENOENT or createConfigIfMissing is false, hooks remain disabled
-      }
-    }
-
-    return { configCreated };
-  }
-
-  /**
-   * Initialize action executors with dynamic imports
-   * Loads routing from unified-design.yaml
-   */
-  private async initializeExecutors(): Promise<void> {
-    this.executors = new Map();
-
-    // Load unified-design.yaml
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const yamlPath = join(__dirname, '../../../../unified-design.yaml');
-    const yamlContent = await readFile(yamlPath, 'utf8');
-    const design = loadYaml(yamlContent) as any;
-
-    // Map executor names to modules
-    const executorModules: Record<string, () => Promise<any>> = {
-      'fs-ops': () => import('../../fs-ops/src/index.js'),
-      'exec': () => import('../../exec/src/index.js')
-    };
-
-    // Load executors on demand
-    const loadedExecutors: Record<string, (action: LoafAction) => Promise<FileOpResult>> = {};
-
-    // Build routing table from YAML
-    for (const [actionName, actionDef] of Object.entries(design.tools)) {
-      const executor = (actionDef as any).executor || this.inferExecutor(actionName, actionDef);
-
-      if (!executor) {
-        console.warn(`No executor defined for action: ${actionName}`);
-        continue;
-      }
-
-      // Load executor module if not already loaded
-      if (!loadedExecutors[executor]) {
-        if (executorModules[executor]) {
-          const module = await executorModules[executor]();
-          // Handle different export names
-          if (executor === 'exec') {
-            loadedExecutors[executor] = module.executeCommand;
-          } else {
-            loadedExecutors[executor] = module.executeFileOperation || module.executeOperation;
-          }
-        } else {
-          // Skip planned but unimplemented executors silently
-          if (!['context', 'git'].includes(executor)) {
-            console.warn(`Unknown executor: ${executor}`);
-          }
-          continue;
-        }
-      }
-
-      this.executors.set(actionName, loadedExecutors[executor]);
-    }
-  }
-
-  /**
-   * Infer executor from action name/type when not explicitly defined
-   * Temporary fallback until all YAML entries have executor field
-   */
-  private inferExecutor(actionName: string, actionDef: any): string | null {
-    // File/dir operations go to fs-ops
-    if (actionName.startsWith('file_') || actionName.startsWith('files_') ||
-      actionName.startsWith('dir_') || ['ls', 'grep', 'glob'].includes(actionName)) {
-      return 'fs-ops';
-    }
-
-    // Exec operations
-    if (actionName === 'exec') {
-      return 'exec';
-    }
-
-    // Context operations (future)
-    if (actionName.startsWith('context_')) {
-      return 'context';
-    }
-
-    // Git operations (future)
-    if (actionName.startsWith('git_') || actionName === 'undo') {
-      return 'git';
-    }
-
-    return null;
-  }
-
-  /**
-   * Execute a single action and format the result
-   * Never throws - all errors returned in ActionResult
-   */
-  private async executeAction(action: LoafAction, seq: number): Promise<ActionResult> {
-    const executor = this.executors?.get(action.action);
-
-    if (!executor) {
-      return {
-        seq,
-        blockId: action.metadata.blockId,
-        action: action.action,
-        params: action.parameters,
-        success: false,
-        error: `Unknown action: ${action.action}`
-      };
-    }
-
-    try {
-      // Add default cwd for exec actions if not specified
-      const enhancedAction = action.action === 'exec' && !action.parameters.cwd
-        ? { ...action, parameters: { ...action.parameters, cwd: this.options.repoPath } }
-        : action;
-
-      const result = await executor(enhancedAction);
-
-      return {
-        seq,
-        blockId: action.metadata.blockId,
-        action: action.action,
-        params: action.parameters,
-        success: result.success,
-        ...(result.error && { error: result.error }),
-        ...(result.data !== undefined && { data: result.data }),
-        // Include exec-specific fields at top level
-        ...(action.action === 'exec' && {
-          data: {
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exit_code: result.exit_code
-          }
-        })
-      };
-
-    } catch (error) {
-      // Executors should never throw, but handle just in case
-      return {
-        seq,
-        blockId: action.metadata.blockId,
-        action: action.action,
-        params: action.parameters,
-        success: false,
-        error: `Unexpected executor error: ${error instanceof Error ? error.message : String(error)}`
-      };
-    }
-  }
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/createStarterConfig.ts ===
-import { writeFile } from 'fs/promises';
-import { join } from 'path';
-
-const STARTER_LOAF_YML = `# Loaf configuration
-version: 1
-
-hooks:
-  before: []
-  after: []
-  
-  # Example hooks (uncomment to use):
-  # before:
-  #   - run: git stash --include-untracked
-  #     continueOnError: false
-  
-  # after:
-  #   - run: git add -A
-  #   - run: git commit -m "\${COMMIT_MSG}"
-  #     continueOnError: false
-  #   - run: git push
-  #     continueOnError: true
-  #     timeout: 10000  # 10s for slow networks
-
-# Variables available in commands
-vars:
-  COMMIT_MSG: "AI-assisted changes"
-  # Add more variables as needed
-`;
-
-/**
- * Creates a starter loaf.yml file if it doesn't exist
- * @returns true if file was created, false if already exists
- */
-export async function createStarterConfig(repoPath: string): Promise<boolean> {
-  const configPath = join(repoPath, 'loaf.yml');
-  
-  try {
-    await writeFile(configPath, STARTER_LOAF_YML, { flag: 'wx' });
-    return true;
-  } catch (error: any) {
-    if (error.code === 'EEXIST') {
-      return false;
-    }
-    throw error;
-  }
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/createStarterConfig.ts ===
-
 === START FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts ===
 /**
  * fs-ops - File system operations executor for loaf
@@ -458,6 +6,7 @@ export async function createStarterConfig(repoPath: string): Promise<boolean> {
  */
 
 import type { LoafAction } from '../../nesl-action-parser/src/index.js';
+import type { FsGuard } from '../../fs-guard/src/index.js';
 import { writeFile, mkdir, unlink, rename, readFile } from 'fs/promises';
 import { dirname } from 'path';
 import { formatNodeError } from './formatNodeError.js';
@@ -484,40 +33,68 @@ export class FileOpError extends Error {
 }
 
 /**
- * Execute a file system operation from a parsed NESL action
- * Never throws - all errors returned in result
+ * File system operations executor with security guard
  */
-export async function executeFileOperation(action: LoafAction): Promise<FileOpResult> {
-  try {
-    const handler = actionHandlers[action.action];
+export class FsOpsExecutor {
+  private handlers: Map<string, (action: LoafAction) => Promise<FileOpResult>>;
 
+  constructor(private guard: FsGuard) {
+    this.handlers = new Map([
+      ['file_write', this.handleFileWrite.bind(this)],
+      ['file_replace_text', this.handleFileReplaceText.bind(this)],
+      ['file_replace_all_text', this.handleFileReplaceAllText.bind(this)],
+      ['file_delete', this.handleFileDelete.bind(this)],
+      ['file_move', this.handleFileMove.bind(this)],
+      ['file_read', this.handleFileRead.bind(this)],
+      ['files_read', this.handleFilesRead.bind(this)],
+      ['file_read_numbered', this.handleFileReadNumbered.bind(this)],
+      ['file_replace_lines', this.handleFileReplaceLines.bind(this)],
+      ['dir_create', this.handleDirCreate.bind(this)],
+      ['dir_delete', this.handleDirDelete.bind(this)],
+      ['ls', this.handleLs.bind(this)],
+      ['grep', this.handleGrep.bind(this)],
+      ['glob', this.handleGlob.bind(this)]
+    ]);
+  }
 
+  /**
+   * Execute a file system operation with guard checks
+   */
+  async execute(action: LoafAction): Promise<FileOpResult> {
+    try {
+      // Check fs-guard permissions first
+      const guardResult = await this.guard.check(action);
+      if (!guardResult.allowed) {
+        return {
+          success: false,
+          error: `fs-guard violation: ${guardResult.reason}`
+        };
+      }
 
-    if (!handler) {
+      const handler = this.handlers.get(action.action);
+      if (!handler) {
+        return {
+          success: false,
+          error: `Unknown action: ${action.action}`
+        };
+      }
+
+      return await handler(action);
+    } catch (error: any) {
+      // This should never happen - handlers should catch their own errors
       return {
         success: false,
-        error: `Unknown action: ${action.action}`
+        error: `Unexpected error in execute: ${error.message}`
       };
     }
-
-    const result = await handler(action);
-    return result;
-
-  } catch (error: any) {
-    // This should never happen - handlers should catch their own errors
-    return {
-      success: false,
-      error: `Unexpected error in executeFileOperation: ${error.message}`
-    };
   }
-}
 
-/**
- * Handle file_move action - moves/renames a file
- * Creates parent directories for destination if needed
- * Overwrites destination if it exists
- */
-async function handleFileMove(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_move action - moves/renames a file
+   * Creates parent directories for destination if needed
+   * Overwrites destination if it exists
+   */
+  private async handleFileMove(action: LoafAction): Promise<FileOpResult> {
   const { old_path, new_path } = action.parameters;
 
   try {
@@ -563,10 +140,10 @@ async function handleFileMove(action: LoafAction): Promise<FileOpResult> {
   }
 }
 
-/**
- * Handle file_delete action - removes a file
- */
-async function handleFileDelete(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_delete action - removes a file
+   */
+  private async handleFileDelete(action: LoafAction): Promise<FileOpResult> {
   const { path } = action.parameters;
 
   try {
@@ -587,11 +164,11 @@ async function handleFileDelete(action: LoafAction): Promise<FileOpResult> {
   }
 }
 
-/**
- * Handle file_write action - writes/creates/overwrites a file with content
- * Automatically creates parent directories if needed
- */
-async function handleFileWrite(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_write action - writes/creates/overwrites a file with content
+   * Automatically creates parent directories if needed
+   */
+  private async handleFileWrite(action: LoafAction): Promise<FileOpResult> {
   const { path, content } = action.parameters;
 
   try {
@@ -626,10 +203,10 @@ async function handleFileWrite(action: LoafAction): Promise<FileOpResult> {
   }
 }
 
-/**
- * Handle file_read action - reads file content
- */
-async function handleFileRead(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_read action - reads file content
+   */
+  private async handleFileRead(action: LoafAction): Promise<FileOpResult> {
   const { path } = action.parameters;
 
   try {
@@ -651,13 +228,13 @@ async function handleFileRead(action: LoafAction): Promise<FileOpResult> {
   }
 }
 
-/**
- * Handle file_read_numbered action - reads file content with line numbers
- * Returns specified lines with line numbers prepended
- * If lines parameter is missing, reads all lines
- * If some lines are out of range, returns available content with error
- */
-async function handleFileReadNumbered(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_read_numbered action - reads file content with line numbers
+   * Returns specified lines with line numbers prepended
+   * If lines parameter is missing, reads all lines
+   * If some lines are out of range, returns available content with error
+   */
+  private async handleFileReadNumbered(action: LoafAction): Promise<FileOpResult> {
   const { path, lines, delimiter = ": " } = action.parameters;
 
   try {
@@ -702,12 +279,12 @@ async function handleFileReadNumbered(action: LoafAction): Promise<FileOpResult>
   }
 }
 
-/**
- * Handle file_replace_lines action - replaces specified lines in a file
- * Supports single line ("4") or range ("23-43") specifications
- * Preserves line endings and handles edge cases
- */
-async function handleFileReplaceLines(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_replace_lines action - replaces specified lines in a file
+   * Supports single line ("4") or range ("23-43") specifications
+   * Preserves line endings and handles edge cases
+   */
+  private async handleFileReplaceLines(action: LoafAction): Promise<FileOpResult> {
   const { path, lines, new_content } = action.parameters;
 
   try {
@@ -850,12 +427,12 @@ async function handleFileReplaceLines(action: LoafAction): Promise<FileOpResult>
   }
 }
 
-/**
- * Handle files_read action - reads multiple files and returns their contents
- * Parses multi-line paths parameter, one absolute path per line
- * Returns an array of file contents in the same order as the paths
- */
-async function handleFilesRead(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle files_read action - reads multiple files and returns their contents
+   * Parses multi-line paths parameter, one absolute path per line
+   * Returns an array of file contents in the same order as the paths
+   */
+  private async handleFilesRead(action: LoafAction): Promise<FileOpResult> {
   const { paths } = action.parameters;
 
   // Parse the multi-line paths string
@@ -910,11 +487,11 @@ async function handleFilesRead(action: LoafAction): Promise<FileOpResult> {
   };
 }
 
-/**
- * Handle file_replace_text action - replaces EXACTLY ONE occurrence
- * Fails if old_text appears 0 or 2+ times
- */
-async function handleFileReplaceText(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_replace_text action - replaces EXACTLY ONE occurrence
+   * Fails if old_text appears 0 or 2+ times
+   */
+  private async handleFileReplaceText(action: LoafAction): Promise<FileOpResult> {
   const { path, old_text, new_text } = action.parameters;
 
   // Validate old_text is not empty
@@ -983,11 +560,11 @@ async function handleFileReplaceText(action: LoafAction): Promise<FileOpResult> 
   }
 }
 
-/**
- * Handle file_replace_all_text action - replaces all occurrences
- * If count provided, validates exact match
- */
-async function handleFileReplaceAllText(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_replace_all_text action - replaces all occurrences
+   * If count provided, validates exact match
+   */
+  private async handleFileReplaceAllText(action: LoafAction): Promise<FileOpResult> {
   const { path, old_text, new_text, count } = action.parameters;
 
   // Validate old_text is not empty
@@ -1052,1463 +629,329 @@ async function handleFileReplaceAllText(action: LoafAction): Promise<FileOpResul
   }
 }
 
-// Internal function stubs for each operation
-
-async function createFile(path: string, content: string): Promise<void> {
-  throw new Error('Not implemented');
-}
-
-
-
-async function replaceTextInFile(path: string, oldText: string, newText: string, count?: number): Promise<number> {
-  throw new Error('Not implemented');
-}
-
-async function deleteFile(path: string): Promise<void> {
-  throw new Error('Not implemented');
-}
-
-async function moveFile(oldPath: string, newPath: string): Promise<void> {
-  throw new Error('Not implemented');
-}
-
-async function readFileContent(path: string): Promise<string> {
-  throw new Error('Not implemented');
-}
-
-async function createDirectory(path: string): Promise<void> {
-  throw new Error('Not implemented');
-}
-
-async function deleteDirectory(path: string): Promise<void> {
-  throw new Error('Not implemented');
-}
-
-interface DirEntry {
-  name: string;
-  type: 'file' | 'directory';
-  size: number;
-  modified: Date;
-}
-
-async function listDirectory(path: string): Promise<DirEntry[]> {
-  throw new Error('Not implemented');
-}
-
-interface GrepResult {
-  file: string;
-  line_number: number;
-  line: string;
-}
-
-async function searchFiles(pattern: string, path: string, include?: string): Promise<GrepResult[]> {
-  throw new Error('Not implemented');
-}
-
-async function globFiles(pattern: string, basePath: string): Promise<string[]> {
-  throw new Error('Not implemented');
-}
-
-// Action handler mapping
-const actionHandlers: Record<string, (action: LoafAction) => Promise<FileOpResult>> = {
-  'file_write': handleFileWrite,
-  'file_replace_text': handleFileReplaceText,
-  'file_replace_all_text': handleFileReplaceAllText,
-  'file_delete': handleFileDelete,
-  'file_move': handleFileMove,
-  'file_read': handleFileRead,
-  'files_read': handleFilesRead,
-  'file_read_numbered': handleFileReadNumbered,
-  'file_replace_lines': handleFileReplaceLines,
-  'dir_create': async (action) => {
+  private async handleDirCreate(action: LoafAction): Promise<FileOpResult> {
     return { success: false, error: 'Not implemented' };
-  },
-  'dir_delete': async (action) => {
+  }
+
+  private async handleDirDelete(action: LoafAction): Promise<FileOpResult> {
     return { success: false, error: 'Not implemented' };
-  },
-  'ls': async (action) => {
+  }
+
+  private async handleLs(action: LoafAction): Promise<FileOpResult> {
     return { success: false, error: 'Action not implemented: ls' };
-  },
-  'grep': async (action) => {
-    return { success: false, error: 'Not implemented' };
-  },
-  'glob': async (action) => {
+  }
+
+  private async handleGrep(action: LoafAction): Promise<FileOpResult> {
     return { success: false, error: 'Not implemented' };
   }
-};
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts ===
 
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/exec/src/index.ts ===
-// Re-export all public functions
-export { executeCommand } from './executeCommand';
-export { mapLanguageToCommand } from './mapLanguageToCommand';
-export { buildSpawnOptions } from './buildSpawnOptions';
-export { formatExecResult } from './formatExecResult';
-
-// Re-export types
-export type { ExecResult } from './types';
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/exec/src/index.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
-import { promisify } from 'util';
-import { exec } from 'child_process';
-import { readFile } from 'fs/promises';
-import { interpolateCommand } from './interpolateCommand.js';
-import { validateCommand } from './validateCommand.js';
-import { formatHookResult } from './formatHookResult.js';
-import { parseYamlConfig } from './parseYamlConfig.js';
-import { validateConfig } from './validateConfig.js';
-import type { CommandResult } from './types.js';
-
-// Public types
-export interface HooksConfig {
-  version?: number;
-  hooks?: {
-    before?: Command[];
-    after?: Command[];
-  };
-  vars?: Record<string, string>;
-}
-
-export interface Command {
-  run: string;
-  continueOnError?: boolean;
-  timeout?: number;
-  cwd?: string;
-}
-
-export interface HookContext {
-  [key: string]: string | number | boolean;
-}
-
-export interface HookResult {
-  success: boolean;
-  executed: number;
-  errors?: Array<{
-    command: string;
-    error: string;
-  }>;
-}
-
-// Promisified exec
-const execAsync = promisify(exec);
-
-// Main class
-export class HooksManager {
-  private config: HooksConfig;
-  private repoPath: string;
-
-  constructor(config?: HooksConfig, repoPath?: string) {
-    this.config = config || { hooks: {}, vars: {} };
-    this.repoPath = repoPath || process.cwd();
-  }
-
-  async runBefore(context?: HookContext): Promise<HookResult> {
-    const commands = this.config.hooks?.before || [];
-    return this.runCommands(commands, context);
-  }
-
-  async runAfter(context?: HookContext): Promise<HookResult> {
-    const commands = this.config.hooks?.after || [];
-    return this.runCommands(commands, context);
-  }
-
-  async loadAndSetConfig(path: string): Promise<HooksConfig> {
-    try {
-      const content = await readFile(path, 'utf8');
-      const config = parseYamlConfig(content);
-
-      const validation = validateConfig(config);
-      if (!validation.valid) {
-        throw new Error(`Invalid config: ${validation.error}`);
-      }
-
-      this.config = config;
-      return config;
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        throw new Error(`Config file not found: ${path}`);
-      }
-      throw error;
-    }
-  }
-
-  private async runCommands(commands: Command[], context?: HookContext): Promise<HookResult> {
-    const results: CommandResult[] = [];
-
-    for (const cmd of commands) {
-      try {
-        // Interpolate variables
-        const interpolatedCmd = interpolateCommand(cmd, this.config.vars || {}, context);
-
-        // Validate command
-        const validation = validateCommand(interpolatedCmd);
-        if (!validation.valid) {
-          const result: CommandResult = {
-            command: cmd.run,
-            success: false,
-            error: validation.error || 'Invalid command'
-          };
-          results.push(result);
-
-          if (!cmd.continueOnError) {
-            break;
-          }
-          continue;
-        }
-
-        // Execute command
-        const result = await this.executeCommand(interpolatedCmd);
-
-        results.push({
-          command: cmd.run,
-          ...result
-        });
-
-        if (!result.success && !cmd.continueOnError) {
-          break;
-        }
-      } catch (error: any) {
-        const result: CommandResult = {
-          command: cmd.run,
-          success: false,
-          error: error.message
-        };
-        results.push(result);
-
-        if (!cmd.continueOnError) {
-          break;
-        }
-      }
-    }
-
-    return formatHookResult(results);
-  }
-
-  private async executeCommand(cmd: Command): Promise<Omit<CommandResult, 'command'>> {
-    const timeout = cmd.timeout || 30000;
-    const options = {
-      cwd: cmd.cwd || this.repoPath,
-      timeout,
-      encoding: 'utf8' as const,
-      shell: true  // Ensure shell interpretation for redirects
-    };
-
-    try {
-      const { stdout, stderr } = await execAsync(cmd.run, options);
-      return {
-        success: true,
-        stdout: stdout || '',
-        stderr: stderr || ''
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        stdout: error.stdout || '',
-        stderr: error.stderr || ''
-      };
-    }
+  private async handleGlob(action: LoafAction): Promise<FileOpResult> {
+    return { success: false, error: 'Not implemented' };
   }
 }
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/parseYamlConfig.ts ===
-import { load } from 'js-yaml';
-import type { HooksConfig } from './types.js';
 
 /**
- * Parses YAML content into HooksConfig object
- * @throws Error if YAML is invalid
+ * Legacy function export for backward compatibility
+ * @deprecated Use FsOpsExecutor class instead
  */
-export function parseYamlConfig(content: string): HooksConfig {
-  try {
-    // Empty string returns null from js-yaml
-    if (content.trim() === '') {
-      return null as any;
-    }
-
-    const parsed = load(content);
-    
-    // js-yaml returns undefined for empty documents sometimes
-    if (parsed === undefined) {
-      return null as any;
-    }
-
-    return parsed as HooksConfig;
-  } catch (error: any) {
-    throw new Error(`Invalid YAML: ${error.message}`);
-  }
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/parseYamlConfig.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/validateConfig.ts ===
-import type { HooksConfig, ValidationResult } from './types.js';
-
-/**
- * Validates a parsed config object has correct structure
- * Checks hooks is object, before/after are arrays, commands are objects
- * vars is object with string values
- */
-export function validateConfig(config: any): ValidationResult {
-  // Empty config is valid
-  if (!config || typeof config !== 'object') {
-    return {
-      valid: false,
-      error: 'Config must be an object'
-    };
-  }
-
-  // Check hooks if present
-  if ('hooks' in config && config.hooks !== undefined) {
-    if (typeof config.hooks !== 'object' || config.hooks === null) {
-      return {
-        valid: false,
-        error: 'hooks must be an object'
-      };
-    }
-
-    // Check before hooks
-    if ('before' in config.hooks && config.hooks.before !== undefined) {
-      if (!Array.isArray(config.hooks.before)) {
-        return {
-          valid: false,
-          error: 'hooks.before must be an array'
-        };
-      }
-
-      // Check each before command
-      for (const cmd of config.hooks.before) {
-        if (typeof cmd !== 'object' || cmd === null) {
-          return {
-            valid: false,
-            error: 'hook commands must be objects'
-          };
-        }
-      }
-    }
-
-    // Check after hooks
-    if ('after' in config.hooks && config.hooks.after !== undefined) {
-      if (!Array.isArray(config.hooks.after)) {
-        return {
-          valid: false,
-          error: 'hooks.after must be an array'
-        };
-      }
-
-      // Check each after command
-      for (const cmd of config.hooks.after) {
-        if (typeof cmd !== 'object' || cmd === null) {
-          return {
-            valid: false,
-            error: 'hook commands must be objects'
-          };
-        }
-      }
-    }
-  }
-
-  // Check vars if present
-  if ('vars' in config && config.vars !== undefined) {
-    if (typeof config.vars !== 'object' || config.vars === null || Array.isArray(config.vars)) {
-      return {
-        valid: false,
-        error: 'vars must be an object'
-      };
-    }
-
-    // Check all var values are strings
-    for (const value of Object.values(config.vars)) {
-      if (typeof value !== 'string') {
-        return {
-          valid: false,
-          error: 'var values must be strings'
-        };
-      }
-    }
-  }
-
-  return { valid: true };
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/validateConfig.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/unified-design.yaml ===
-# AI Coder Tools Schema - Unified Design
-
-# Loaf executes filesystem and runtime commands embedded in LLM output using NESL syntax. It provides deterministic filesystem access and shell command execution for LLM coding agents.
-
-# NESL syntax example:
-
-NESL_synatx_example: |
-  ```sh nesl
-  #!nesl [@three-char-SHA-256: k7m]
-  action = "file_write"
-  path = "/tmp/\"hello\".txt"
-  content = <<'EOT_k7m'
-  Hello world!
-  how are you?
-  EOT_k7m
-  #!end_k7m
-  ```
-
-
-tools:
-  # File Operations
-  file_write:
-    type: write
-    executor: fs-ops
-    description: Create new file while creating any necessary parent dirs. overwrites if already exists
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      content: {type: string, required: true}
-    returns: {success: boolean, error?: string}
-    
-  file_replace_text:
-    type: write
-    executor: fs-ops
-    description: Replace first and only instance of substring in file. must exist only once
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      old_text: {type: string, required: true}
-      new_text: {type: string, required: true}
-    returns: {success: boolean, replacements_made?: integer, error?: string}
-    
-  file_replace_text_range:
-    type: write
-    executor: fs-ops
-    description: Replace first and only instance of text range in file. must exist only once
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      old_text_beginning: {type: string, required: true}
-      old_text_end: {type: string, required: true}
-      new_text: {type: string, required: true}
-    returns: {success: boolean, replacements_made?: integer, error?: string}
-    
-  file_replace_all_text:
-    type: write
-    executor: fs-ops
-    description: Replace each matching substring in file.  Number of matches (count) should usually be known and declared ahead of time.
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      old_text: {type: string, required: true}
-      new_text: {type: string, required: true}
-      count: {type: integer, required: false}
-    returns: {success: boolean, replacements_made?: integer, error?: string}
-    
-
-  #tentative!  under consideration
-  files_replace_all_text:
-    type: write
-    executor: fs-ops
-    description: Replace all occurrences of substring in multiple files. Processes each file independently
-    accessibility: [llm]
-    parameters:
-      paths: {type: string, format: multiline_absolute_paths}
-      old_text: {type: string, required: true}
-      new_text: {type: string, required: true}
-    returns: {
-      success: boolean,
-      results: {
-        type: array,
-        items: {
-          path: string,
-          replacements_made: integer,
-          error?: string
-        }
-      },
-      error?: string  # for complete failure
-    }
-
-
-
-  #tentative!  under consideration.  dont implement yet
-  # actually.... for "in parents" stuff lets just use our exisitng tools, but allow "parent" stuff to be added to the path, like ina  syntax we created earlier but forgot about
-  # like:
-  # path/to/file.md@@## Section 2@@### part 3
-  # path/to/code.rs@@MyModuleOrClass@@myFunction
-  files_replace_text_in_parents:
-    type: write
-    executor: fs-ops
-    description: Replace all occurrences of substring in a given node of a parsed file that supports grouping, like markdown, code (ast), etc 
-    accessibility: [llm]
-    parameters:
-      path: {type: string, required: true}
-      parents: {type: string, required: true, format: multiline_absolute_paths} # need to better define how parents are defined
-      old_text: {type: string, required: true}
-      new_text: {type: string, required: true}
-
-
-  file_append:
-    type: write
-    executor: fs-ops
-    description: Append to file
-    accessibility: [llm]
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      content: {type: string, required: true}
-    returns: {success: boolean, error?: string}
-    
-  file_delete:
-    type: write
-    executor: fs-ops
-    description: Delete file
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-    
-  file_move:
-    type: write
-    executor: fs-ops
-    description: Move/rename file
-    accessibility: [llm]
-    output_display: never
-    primary_param: old_path
-    parameters:
-      old_path: {type: string, required: true, format: absolute_path}
-      new_path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-    
-
-
-  file_read:
-    type: read
-    executor: fs-ops
-    description: Read single file content
-    accessibility: [llm]
-    output_display: always
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, content?: string, error?: string}
-
-  file_read_numbered:
-    type: read
-    executor: fs-ops
-    description: Read file content with line numbers for specified line range
-    accessibility: [llm]
-    output_display: always
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      lines: {type: string, required: false, description: "Line range: single '4' or range '23-43'. If omitted, reads all lines."}
-      delimiter: {type: string, required: false, default: ": ", description: "Delimiter between line number and content"}
-    returns: {success: boolean, content?: string, error?: string}
-
-  file_replace_lines:
-    type: write
-    executor: fs-ops
-    description: Replace specified line range in file with new content
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      lines: {type: string, required: true, description: "Line range: single '4' or range '23-43'"}
-      new_content: {type: string, required: true, description: "Content to replace the line range with"}
-    returns: {success: boolean, lines_replaced?: integer, error?: string}
-
-
-  files_read:
-    type: read
-    executor: fs-ops
-    description: Read and concatenate contents of multiple files into a single string, with clear file delimiters
-    accessibility: [llm]
-    output_display: always
-    primary_param: paths
-    parameters:
-      paths: {
-        type: string, 
-        required: true, 
-        format: "multiline_absolute_paths",
-        description: "One absolute file path per line. Empty lines are ignored."
-      }
-    returns: {
-      success: boolean, 
-      data?: {                          # i guess this is formatted wrong... 
-        paths: array, content: array
-        },
-      error?: string
-    }  
-    example: |
-      paths: |
-        /home/user/projects/src/main.py
-        /home/user/projects/src/utils.py
-        /home/user/projects/README.md
-    
-  # Directory Operations
-  dir_create:
-    type: write
-    executor: fs-ops
-    description: Create directory
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-    
-  dir_delete:
-    type: write
-    executor: fs-ops
-    description: Delete directory
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-    
-  # Read Operations
-  ls:
-    type: read
-    executor: fs-ops
-    description: List directory contents
-    accessibility: [llm]
-    output_display: always
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: 
-      success: boolean
-      data:
-        type: array
-        items:
-          name: string
-          type: string  # file|directory
-          size: integer
-          modified: timestamp
-      error: string
-    
-  grep:
-    type: read
-    description: Search pattern in files
-    accessibility: [llm]
-    output_display: always
-    primary_param: pattern
-    parameters:
-      pattern: {type: string, required: true}
-      path: {type: string, required: true, format: absolute_path}
-      include: {type: string, required: false}
-    returns: 
-      success: boolean
-      data:
-        type: array
-        items:
-          file: string
-          line_number: integer
-          line: string
-      error: string
-    
-  glob:
-    type: read
-    description: Find files matching pattern
-    accessibility: [llm]
-    output_display: always
-    primary_param: pattern
-    parameters:
-      pattern: {type: string, required: true}
-      base_path: {type: string, required: true, format: absolute_path}
-    returns: 
-      success: boolean
-      data:
-        type: array
-        items: string
-      error: string
-    
-  # Execution
-  exec:
-    type: dynamic
-    description: Execute code
-    accessibility: [llm]
-    output_display: conditional  # Check return_output parameter
-    primary_param: lang
-    parameters:
-      code: {type: string, required: true}
-      lang: {type: enum, values: [python, javascript, bash], required: true}
-      version: {type: string, required: false}
-      cwd: {type: string, required: false, format: absolute_path}
-      return_output: {type: boolean, required: false, default: true}
-    returns: {success: boolean, stdout?: string, stderr?: string, exit_code?: integer, error?: string}
-
-  # Context Operations -- for much later.  dont do this until loaf has been integrated into bigfoot, the ai llm coder
-  context_add:
-    type: meta
-    description: Add item to working context (persistent)
-    accessibility: [llm, user]
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-      
-  context_remove:
-    type: meta
-    description: Remove item from working context
-    accessibility: [llm, user]
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-      
-  context_list:
-    type: meta
-    description: List items in working context
-    accessibility: [llm, user]
-    parameters: {}
-    returns: 
-      success: boolean
-      data:
-        type: array
-        items:
-          path: string
-          size: integer
-      error: string
-    
-  context_prune:
-    type: meta
-    description: Remove unused items from working context
-    accessibility: [llm, user]
-    parameters: {}
-    returns: {success: boolean, removed?: array of strings, error?: string}
-    
-  context_clear:
-    type: meta
-    description: Clear all working context items
-    accessibility: [llm, user]
-    parameters: {}
-    returns: {success: boolean, error?: string}
-    
-  # Git Operations
-  git_squash:
-    type: git
-    description: Squash commits
-    slash_command: true
-    parameters:
-      mode: {type: enum, values: [auto_ai, ai_messages, hours, days, contiguous_only=true, msg_contains], required: true}
-      message: {type: string, required: false}
-      hours: {type: integer, required: false, when: "mode=hours"}
-      days: {type: integer, required: false, when: "mode=days"}
-      msg_target: {type: string, required: false, when: "mode=msg_contains"}
-    returns: {success: boolean, error?: string}
-      
-  undo:
-    type: git
-    description: Undo last AI changes
-    accessibility: [user]
-    constraints: ["No changes since last AI operation"]
-    parameters: {}
-    returns: {success: boolean, error?: string}
-    
-  git_step_back:
-    type: git
-    description: Move to previous commit
-    accessibility: [user]
-    behavior: Stashes untracked changes
-    parameters: {}
-    returns: {success: boolean, stashed_files?: array of strings, error?: string}
-    
-  git_step_forward:
-    type: git
-    description: Move to next commit
-    accessibility: [user]
-    behavior: Attempts to pop stashed changes
-    parameters: {}
-    returns: {success: boolean, conflicts?: array of strings, error?: string}
-
-# Transaction Management
-transaction_model:
-  strategy: operation_group
-  conflict_detection:
-    methods:
-      - mtime comparison (fast but unreliable)
-      - checksum comparison (slower but accurate)
-      - git status check (catches git-tracked changes)
-    timing:
-      - Check immediately before operation group
-      - Check after each write operation
-      - Final check before commit
-  implementation:
-    - Begin: git commit current state
-    - Execute: track all operations
-    - Validate: check for external modifications
-    - Success: git commit with summary
-    - Failure: git reset --hard to start
-  atomicity: none  # Git operations are NOT atomic at filesystem level
-  
-# Security Model
-security:
-  path_validation:
-    type: allowlist
-    allowed_roots:
-      - /home/user/projects
-      - /tmp/ai-coder
-    blacklist_patterns:
-      - .*\.ssh.*
-      - .*\.git/config
-      - /etc/.*
-      - /sys/.*
-      - /proc/.*
-  canonicalization: required  # Resolve ../ and symlinks before checking
-  
-# System Configuration
-config:
-  encoding: utf-8
-  line_endings: preserve  # Don't normalize
-  max_file_size: 10485760  # 10MB
-  git_auto_push: false  # Require explicit push
-  commit_message_format: "AI: {operation_summary}"
-
-TODO: |   
-  Transaction Safety: The git-based transaction model has race conditions:
-
-    Gap between "git commit" and first operation
-    Non-atomic filesystem ops vs git state
-
-
-# more TODO 
-
-
-  #tentative!  under consideration.  dont implement yet
-  # actually.... for "in parents" stuff lets just use our exisitng tools, but allow "parent" stuff to be added to the path, like ina  syntax we created earlier but forgot about
-  # like:
-  # path/to/file.md@@## Section 2@@### part 3
-  # path/to/code.rs@@MyModuleOrClass@@myFunction
-
-  # and add a wayt o get file numbers per read.  like an attribute to add to file_read to get the text with line numbers. and then a file_lines_replace that takes in a line range and replacement_text params. or maybe even each as an array.  maybe we should just change nesl-js so its not an error to have repeated values.  cos right now its like impossible to make a lot of small changes to a big code file.  but if we new the line number per each... that would make it easy for LLM... 
-=== END FILE: /Users/stuart/repos/loaf/unified-design.yaml ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/ABSTRACT.md ===
-# Security
-
-Validates file system paths against configurable allow/deny rules before fs-ops operations execute, preventing unintended file access.
-
-## Overview
-
-The fs-guard component provides path validation for all file system operations in loaf. It intercepts fs-ops actions before execution, canonicalizes paths to resolve symlinks and relative references, then checks them against user-defined glob patterns. The component supports separate read and write permissions with a most-specific-match precedence system.
-
-Configuration lives in loaf.yml with four lists: read-allow, read-deny, write-allow, and write-deny. Patterns can be relative (resolved from loaf.yml location) or absolute. The validation process follows symlinks via canonicalization, making rules apply to actual file locations rather than symlink paths. When paths match multiple rules, the most specific pattern wins, enabling fine-grained control like denying a directory while allowing specific subdirectories.
-
-The component integrates at the fs-ops executor level, checking every file operation before it proceeds. Operations requiring multiple permissions (like file_replace_text needing both read and write) must pass all checks. Clear error messages distinguish fs-guard violations from operational failures, helping LLMs understand why operations failed.
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/ABSTRACT.md ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/ARCH.md ===
-# fs-guard Architecture
-
-## Design Philosophy
-
-**Minimal Scope, Maximum Clarity**: Only validate fs-ops paths. No exec sandboxing, no network controls, no resource limits. Clear error messages for LLM comprehension.
-
-## Key Design Decisions
-
-### Integration Point
-- Intercept at fs-ops `executeFileOperation` before action dispatch
-- Single validation point for all file system operations
-- No modifications to individual operation handlers
-
-**Rationale**: Clean separation of concerns. Filesystem guards remains pluggable.
-
-### Path Resolution Strategy
-1. Canonicalize input path via `fs.realpath()`
-2. Canonicalize all rule patterns on config load
-3. Match canonical path against canonical patterns
-
-**Rationale**: Prevents symlink traversal attacks. Makes rules predictable.
-
-### Rule Precedence: Most Specific Wins
-```yaml
-read:
-  allow: ["/home/**"]
-  deny: ["/home/user/.ssh/**"]  # More specific, wins
-```
-
-Specificity = count of non-wildcard path segments.
-
-**Rationale**: Enables "deny directory, allow subdirectory" patterns naturally.
-
-### Permission Model
-```typescript
-const actionPermissions = {
-  file_read: ['read'],
-  file_write: ['write'],
-  file_create: ['write'],
-  file_delete: ['write'],
-  file_replace_text: ['read', 'write'],
-  file_replace_all_text: ['read', 'write'],
-  file_move: ['read:old_path', 'write:new_path'],
-  files_read: ['read:paths'],
-  file_read_numbered: ['read'],
-  // dir operations similar
-}
-```
-
-**Rationale**: Operations have inherent permission requirements. Move needs read on source, write on destination.
-
-### Configuration Schema
-```yaml
-fs-guard:
-  fs:
-    read:
-      allow: ["./src/**", "/tmp/**"]
-      deny: ["/tmp/ssh-*"]
-    write:
-      allow: ["./src/**", "/tmp/loaf-**"]
-      deny: ["**/.git/**"]
-```
-
-Relative paths resolved from loaf.yml directory.
-
-**Rationale**: Separating read/write enables "read-only" access patterns.
-
-### Error Format
-```typescript
-{
-  success: false,
-  error: "fs-guard violation: Write access denied for '/etc/passwd'"
-}
-```
-
-Not: "EACCES: permission denied" (ambiguous with OS permissions).
-
-**Rationale**: LLM needs to distinguish fs-guard policy from system errors.
-
-### Canonicalization Failures
-If `fs.realpath()` fails (file doesn't exist yet):
-- For write operations: Check non-canonical path
-- For read operations: Deny (file doesn't exist anyway)
-
-**Rationale**: Can't canonicalize paths that don't exist, but need to validate writes creating new files.
-
-### Default Policy
-not sure about this.  maybe defauls is that `/` is denied for everything?  so specific whitelists are needed?  and maybe the current repo is whitelisted?  
-
-
-### TOCTOU Acceptance
-Race condition between canonicalization and operation is unsolvable without filesystem locks.
-
-**Documented limitation**: Paths can change between check and use.
-
-## Performance Considerations
-
-### Canonicalization Cache
-Don't cache. Filesystem state changes; cache invalidation is error-prone.
-
-**Rationale**: Correctness over performance for filesystem guardrail.
-
-### Pattern Compilation
-Compile glob patterns once at config load, not per check.
-
-**Rationale**: Glob compilation is expensive; patterns are static.
-
-## Glob Library Choice
-Use `minimatch` with options:
-```typescript
-{
-  dot: true,      // Match hidden files
-  nonegate: true, // No '!' patterns
-  nocase: false   // Case sensitive
-}
-```
-
-**Rationale**: Most common, well-tested. Options prevent surprises.
-
-## Operation-Specific Logic
-
-### file_move
-- Check read permission on `old_path`
-- Check write permission on `new_path`
-- Both must pass
-
-### files_read
-- Extract each path from multi-line `paths` parameter
-- Check read permission on each
-- Fail fast on first denial
-
-### New File Creation
-- Parent directory must exist for canonicalization
-- If parent missing, check non-canonical path
-- Let fs-ops handle missing parent error
-
-## Testing Strategy
-Test cases must verify:
-1. Symlink traversal blocked
-2. Most-specific matching
-3. Relative path resolution
-4. Non-existent path handling
-5. Each operation's permission mapping
-
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/ARCH.md ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/TODO.md ===
-need to update loaf.yaml config handling:
-
-https://claude.ai/chat/50860d9f-c4eb-4b91-980c-522e89bdfc1c
-
-
-> Your current design has fs-guard at the executor level, but executors are stateless.
-
-> huh?
-
-
-
-> and how are the configs currently getting passed around?  and what do you think is the correct way to do that  regardless of what we're doing now? it might be kind of a mess.  since that yaml file wasn't introduced until the most recent component we wrote, hooks.
-
----
-
-Looking at the code:
-
-## Current Config Flow
-
-1. **hooks**: Config passed via constructor OR loaded from `loaf.yml`
-2. **fs-ops/exec**: No config mechanism - they're pure executors
-3. **orch**: Creates hooks with config, passes nothing to executors
-
-## The "Stateless" Confusion
-
-I was wrong - executors maintain no state between calls, but that's fine. They're functions, not services.
-
-## Config Distribution Options
-
-**Option 1: Executor Factory** (Current hooks pattern)
-```typescript
-const fsOps = new FsOpsExecutor({ guard: fsGuardConfig });
-executors.set('file_read', (action) => fsOps.execute(action));
-```
-
-**Option 2: Context Parameter**
-```typescript
-executeFileOperation(action, { security: securityConfig })
-```
-
-**Option 3: Global Config Registry**
-```typescript
-// In orch
-ConfigRegistry.set('fs-guard', config);
-// In fs-ops
-const config = ConfigRegistry.get('fs-guard');
-```
-
-## Recommendation
-
-**Option 1** is cleanest - orch instantiates fs-guard, passes to fs-ops constructor. This matches the hooks pattern and keeps config flow explicit. The "mess" is that fs-ops/exec were designed before configuration needs existed.
-
-The real question: Should fs-guard config live in `loaf.yml` alongside hooks? If yes, orch needs to parse and distribute all configs at startup.
-
-
-> Should fs-guard config live in loaf.yml alongside hooks? If yes, orch needs to parse and distribute all configs at startup.
-
-> yes, right?  seems like a mess to have multiple config files.  wdyt
-
-
-Yes, single config file. Multiple files = configuration sprawl, discovery problems, sync issues.
-
-## Config Structure in loaf.yml
-
-```yaml
-version: 1
-
-hooks:
-  before: []
-  after: []
-
-fs-guard:
-  mode: allowlist  # or denylist
-  allowed:
-    - "./**"
-    - "/tmp/loaf-**"
-  denied: []
-  followSymlinks: false
-
-# Future sections:
-# exec-guard:
-#   languages: [python, javascript]
-#   timeout: 30000
-```
-
-## Implementation Path
-
-1. **Extend loaf.yml parsing** - orch already loads it for hooks
-2. **Pass to executors at construction** - orch instantiates fs-ops with fs-guard config
-3. **fs-guard as fs-ops dependency** - fs-ops constructor creates guard instance
-
-## Critical Issue
-
-Current orch dynamically imports executors on-demand. With config, needs upfront instantiation:
-
-```typescript
-// Current: lazy loading
-if (!loadedExecutors[executor]) {
-  const module = await executorModules[executor]();
-}
-
-// Needed: eager instantiation with config
-const fsOps = new FsOpsExecutor({ 
-  guard: config['fs-guard'] 
-});
-```
-
-This breaks the lazy-loading pattern. Worth it for cleaner config flow.
-
-------------------------
-
-
-## Config Architecture Refactor Guide
-
-### Core Problem
-Current executors are stateless functions with no config injection point. Need to enable per-component configuration while maintaining clean separation of concerns.
-
-### Design Decisions
-
-1. **Mandatory fs-guard** - No opt-out. Simpler mental model, security by default
-2. **Single config file** - `loaf.yml` contains all component configs
-3. **Executor classes** - Replace function exports with classes that accept dependencies
-4. **Eager instantiation** - Load all executors upfront with config, abandon lazy loading
-
-### Implementation Steps
-
-#### 1. Define Config Types
-Create `/proj/comp/orch/src/types.ts`:
-```typescript
-export interface LoafConfig {
-  version: number;
-  hooks?: HooksConfig;
-  'fs-guard'?: FsGuardConfig;
-  'exec-guard'?: ExecGuardConfig; // future
-}
-
-export interface FsGuardConfig {
-  allowed?: string[];
-  denied?: string[];
-  followSymlinks?: boolean;
-}
-```
-
-#### 2. Create FsGuard Component
-Create `/proj/comp/fs-guard/src/types.ts`:
-```typescript
-export interface GuardCheckResult {
-  allowed: boolean;
-  reason?: string;
-}
-```
-
-Create `/proj/comp/fs-guard/src/FsGuard.ts`:
-```typescript
-export class FsGuard {
-  constructor(private config: FsGuardConfig, private repoRoot: string) {}
-  
-  async check(action: LoafAction): Promise<GuardCheckResult> {
-    // Extract paths based on action type
-    // Canonicalize paths
-    // Check against rules with most-specific-wins
-  }
-}
-```
-
-#### 3. Convert fs-ops to Class
-Modify `/proj/comp/fs-ops/src/index.ts`:
-```typescript
-export class FsOpsExecutor {
-  private handlers: Map<string, (action: LoafAction) => Promise<FileOpResult>>;
-  
-  constructor(private guard: FsGuard) {
-    this.handlers = new Map([
-      ['file_write', this.handleFileWrite.bind(this)],
-      ['file_read', this.handleFileRead.bind(this)],
-      // ... move all existing handlers here
-    ]);
-  }
-  
-  async execute(action: LoafAction): Promise<FileOpResult> {
-    const guardResult = await this.guard.check(action);
-    if (!guardResult.allowed) {
-      return {
-        success: false,
-        error: `fs-guard: ${guardResult.reason}`
-      };
-    }
-    
-    const handler = this.handlers.get(action.action);
-    if (!handler) {
-      return {
-        success: false,
-        error: `Unknown action: ${action.action}`
-      };
-    }
-    
-    return handler(action);
-  }
-  
-  // Move existing handler functions as private methods
-  private async handleFileWrite(action: LoafAction): Promise<FileOpResult> {
-    // Existing handleFileWrite code
-  }
-}
-
-// Keep backward compatibility export for tests
 export async function executeFileOperation(action: LoafAction): Promise<FileOpResult> {
   throw new Error('Direct function call deprecated. Use FsOpsExecutor class.');
 }
-```
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts ===
 
-#### 4. Convert exec to Class
-Similar pattern for `/proj/comp/exec/src/index.ts`:
-```typescript
-export class ExecExecutor {
-  constructor(/* future: execGuard */) {}
-  
-  async execute(action: LoafAction): Promise<FileOpResult> {
-    // Move executeCommand logic here
-  }
-}
-```
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_action_result.test.ts ===
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync, rmSync, existsSync, readdirSync, statSync } from 'fs';
+import { join } from 'path';
+import { marked } from 'marked';
+import { parseNeslResponse } from '../../../nesl-action-parser/src/index.js';
+import { executeFileOperation } from '../../src/index.js';
 
-#### 5. Create Config Loader
-Create `/proj/comp/orch/src/loadConfig.ts`:
-```typescript
-export async function loadConfig(repoPath: string): Promise<LoafConfig> {
-  const configPath = join(repoPath, 'loaf.yml');
-  
-  try {
-    const content = await readFile(configPath, 'utf8');
-    const config = loadYaml(content) as LoafConfig;
-    
-    // Validate config structure
-    if (!config.version) {
-      throw new Error('Config missing version');
+// Find all .cases.md files recursively
+function findTestFiles(dir: string, files: string[] = []): string[] {
+  const entries = readdirSync(dir);
+
+  for (const entry of entries) {
+    const fullPath = join(dir, entry);
+    const stat = statSync(fullPath);
+
+    if (stat.isDirectory()) {
+      findTestFiles(fullPath, files);
+    } else if (entry.endsWith('.cases.md')) {
+      files.push(fullPath);
     }
-    
-    return config;
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      // Return default config
-      return {
-        version: 1,
-        'fs-guard': {
-          allowed: [`${repoPath}/**`],
-          denied: ['/**']
+  }
+
+  return files;
+}
+
+describe('write_action_result tests', () => {
+  let createdPaths: Set<string>;
+
+  beforeEach(() => {
+    createdPaths = new Set<string>();
+  });
+
+  afterEach(() => {
+    // Clean up created test directories
+    for (const path of createdPaths) {
+      try {
+        if (existsSync(path)) {
+          rmSync(path, { recursive: true, force: true });
         }
-      };
-    }
-    throw error;
-  }
-}
-```
-
-#### 6. Refactor Orchestrator
-Modify `/proj/comp/orch/src/index.ts`:
-```typescript
-export class Loaf {
-  private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>>;
-  private config: LoafConfig;
-  
-  constructor(options: LoafOptions = {}) {
-    this.options = {
-      repoPath: options.repoPath || process.cwd(),
-      // ...
-    };
-  }
-  
-  async execute(llmOutput: string): Promise<ExecutionResult> {
-    // Initialize executors on first use
-    if (!this.executors) {
-      await this.initializeExecutors();
-    }
-    
-    // Rest of existing execute logic
-  }
-  
-  private async initializeExecutors(): Promise<void> {
-    // Load config
-    this.config = await loadConfig(this.options.repoPath!);
-    
-    // Initialize hooks if enabled
-    if (this.options.enableHooks) {
-      // Existing hooks initialization, using this.config.hooks
-    }
-    
-    // Create fs-guard
-    const fsGuard = new FsGuard(
-      this.config['fs-guard'] || {
-        allowed: [`${this.options.repoPath}/**`],
-        denied: ['/**']
-      },
-      this.options.repoPath!
-    );
-    
-    // Create executors
-    const fsOps = new FsOpsExecutor(fsGuard);
-    const exec = new ExecExecutor();
-    
-    // Build routing table from unified-design.yaml
-    this.executors = new Map();
-    const design = await this.loadUnifiedDesign();
-    
-    for (const [actionName, actionDef] of Object.entries(design.tools)) {
-      const executorName = (actionDef as any).executor;
-      
-      switch (executorName) {
-        case 'fs-ops':
-          this.executors.set(actionName, (action) => fsOps.execute(action));
-          break;
-        case 'exec':
-          this.executors.set(actionName, (action) => exec.execute(action));
-          break;
-        // Future executors...
+      } catch (err) {
+        // Continue silently
       }
     }
-  }
-}
-```
-
-#### 7. Update Tests
-Tests need to construct executors with guards:
-```typescript
-// fs-ops tests
-const guard = new FsGuard({ allowed: ['test/**'] }, '/test/root');
-const executor = new FsOpsExecutor(guard);
-const result = await executor.execute(action);
-```
-
-### Rationale
-
-**Why classes over functions**: Dependency injection requires construction-time config. Functions can't hold state cleanly.
-
-**Why eager loading**: Config validation should fail fast. Memory cost negligible for ~10 executors.
-
-**Why fs-guard mandatory**: Optional security is no security. Tests can use permissive guards.
-
-**Why single config file**: Multiple configs = synchronization bugs. One source of truth.
-
-### Migration Risk
-
-Breaking changes to all executor interfaces. But no production users yet, so now is the time.
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/TODO.md ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/minimal.test.ts ===
-import { describe, it, expect } from 'vitest';
-import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'fs';
-
-describe('minimal fs test', () => {
-  it('can write and read files', () => {
-    const path = '/tmp/minimal-test.txt';
-    const content = 'test content';
-    
-    // Write
-    writeFileSync(path, content);
-    
-    // Read
-    const read = readFileSync(path, 'utf8');
-    expect(read).toBe(content);
-    
-    // Cleanup
-    unlinkSync(path);
-    expect(existsSync(path)).toBe(false);
   });
-  
-  it('can run multiple times', () => {
-    for (let i = 0; i < 10; i++) {
-      const path = `/tmp/minimal-${i}.txt`;
-      writeFileSync(path, `content ${i}`);
-      unlinkSync(path);
-    }
-    expect(true).toBe(true);
+
+  // Get test files from write_action_result directory
+  const testDir = join(__dirname, '../../test-data/integration/write_action_result');
+  const testFiles = findTestFiles(testDir).sort();
+
+  testFiles.forEach(filepath => {
+    const content = readFileSync(filepath, 'utf8');
+    const tokens = marked.lexer(content);
+
+    // Extract test group name from first h1 heading
+    const groupHeading = tokens.find(t => t.type === 'heading' && t.depth === 1);
+    const groupName = groupHeading?.text || 'Unknown Group';
+
+    describe(groupName, () => {
+      // Process h3 headings as test cases
+      let currentTestName = '';
+      let codeBlocks: string[] = [];
+
+      /**
+       * Process a test case with its code blocks
+       * @param testName Name of the test
+       * @param blocks Array of code blocks [writeBlock, actionBlock, resultBlock]
+       */
+      const processTest = (testName: string, blocks: string[]) => {
+        it(testName, async () => {
+          // Block 0: Write action (optional) - may contain multiple NESL blocks
+          // Block 1: Test action
+          // Block 2: Expected JSON result
+
+          const writeBlock = blocks[0];
+          const actionBlock = blocks[1];
+          const resultBlock = blocks[2];
+
+          // Execute write action if not empty
+          if (writeBlock?.trim()) {
+
+            const writeResult = await parseNeslResponse(writeBlock);
+
+            // // Debug: log parse result
+            // if (testName.includes('move-to-existing-file')) {
+            //   console.log(`DEBUG: Parse errors: ${writeResult.errors.length}`);
+            //   console.log(`DEBUG: Parse summary:`, writeResult.summary);
+            //   if (writeResult.errors.length > 0) {
+            //     writeResult.errors.forEach(err => {
+            //       console.log(`DEBUG: Parse error:`, err);
+            //     });
+            //   }
+            // }
+
+            if (writeResult.errors.length > 0) {
+              throw new Error(`Failed to parse write NESL: ${writeResult.errors.map(e => e.message).join(', ')}`);
+            }
+
+            // // Debug: log parsed actions
+            // if (testName.includes('move-to-existing-file')) {
+            //   console.log(`DEBUG: Parsed ${writeResult.actions.length} write actions`);
+            //   writeResult.actions.forEach((action, i) => {
+            //     console.log(`DEBUG: Action ${i}: ${action.action} path=${action.parameters?.path}`);
+            //   });
+            // }
+
+            // Execute each write action
+            for (const action of writeResult.actions) {
+              const result = await executeFileOperation(action);
+              // // Debug: log execution result
+              // if (testName.includes('move-to-existing-file')) {
+              //   console.log(`DEBUG: Executed ${action.action} path=${action.parameters?.path} success=${result.success}`);
+              //   if (!result.success) {
+              //     console.log(`DEBUG: Execution error:`, result.error);
+              //   }
+              // }
+              // Track paths for cleanup
+              if (action.parameters?.path) {
+                const testDirMatch = action.parameters.path.match(/\/tmp\/t_[^\/]+/);
+                if (testDirMatch) createdPaths.add(testDirMatch[0]);
+              }
+            }
+          }
+
+          // Execute test action
+          const actionResult = await parseNeslResponse(actionBlock);
+          if (actionResult.errors.length > 0) {
+            throw new Error(`Failed to parse action NESL: ${actionResult.errors.map(e => e.message).join(', ')}`);
+          }
+
+          let testResult;
+          for (const action of actionResult.actions) {
+            testResult = await executeFileOperation(action);
+            // Track paths for cleanup
+            if (action.parameters?.path) {
+              const testDirMatch = action.parameters.path.match(/\/tmp\/t_[^\/]+/);
+              if (testDirMatch) createdPaths.add(testDirMatch[0]);
+            }
+            if (action.parameters?.old_path) {
+              const testDirMatch = action.parameters.old_path.match(/\/tmp\/t_[^\/]+/);
+              if (testDirMatch) createdPaths.add(testDirMatch[0]);
+            }
+            if (action.parameters?.new_path) {
+              const testDirMatch = action.parameters.new_path.match(/\/tmp\/t_[^\/]+/);
+              if (testDirMatch) createdPaths.add(testDirMatch[0]);
+            }
+          }
+
+          // Verify result
+          const expectedResult = JSON.parse(resultBlock);
+          expect(testResult).toEqual(expectedResult);
+        }, 30000);
+      };
+
+      // Parse tokens and create tests
+      tokens.forEach((token, index) => {
+        if (token.type === 'heading' && token.depth === 3) {
+          // Process previous test if exists
+          if (currentTestName && codeBlocks.length >= 2) {
+            processTest(currentTestName, [...codeBlocks]);
+          }
+
+          // Start new test
+          currentTestName = token.text;
+          codeBlocks = [];
+        } else if (token.type === 'code' && currentTestName) {
+          codeBlocks.push(token.text);
+        }
+      });
+
+      // Process final test
+      if (currentTestName && codeBlocks.length >= 2) {
+        processTest(currentTestName, [...codeBlocks]);
+      }
+    });
   });
 });
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/minimal.test.ts ===
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_action_result.test.ts ===
 
-=== START FILE: /Users/stuart/repos/loaf/use-listener/instruct.md ===
-# NESL Tool API Reference
-
-these are tools that the user will execute on their machine after your response is complete
-
-## NESL Syntax example 
-
-
-```sh nesl
-#!nesl [@three-char-SHA-256: q8r]
-action = "tool_name"
-param1 = <<'EOT_q8r'
-value line 1
-
- value line 2
-EOT_q8r
-param2 = "value"
-#!end_q8r
-```
-
-equivalent json:
-
-```json
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/tsconfig.json ===
 {
- "action": "tool_name",
- "param1": "value line 1\n\n value line 2",
- "param2": "value"
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "src"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
 }
-```
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/tsconfig.json ===
 
-**Critical constraints:**
-- Paths: always absolute
-- Whitespace: preserved exactly in heredocs
+=== START FILE: /Users/stuart/repos/loaf/package.json ===
+{
+  "name": "loaf",
+  "version": "0.1.0",
+  "description": "LLM Output Actuation Framework",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "dev": "tsx watch proj/src/index.ts",
+    "start": "tsx proj/src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:run": "vitest run",
+    "test:debug": "vitest run --reporter=verbose --no-coverage",
+    "test:handles": "node --expose-gc ./node_modules/.bin/vitest run --reporter=verbose --no-coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint proj/**/*.ts",
+    "lint:fix": "eslint proj/**/*.ts --fix",
+    "listener": "tsx use-listener/test-listener-live.ts"
+  },
+  "dependencies": {
+    "clipboardy": "^4.0.0",
+    "js-yaml": "^4.1.0",
+    "marked": "^12.0.0",
+    "nesl-js": "github:nesl-lang/nesl-js"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.19.9",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.0",
+    "typescript": "^5.8.3",
+    "vitest": "^1.2.0"
+  },
+  "keywords": [
+    "llm",
+    "actions",
+    "filesystem",
+    "nesl"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+=== END FILE: /Users/stuart/repos/loaf/package.json ===
 
-## Tools
-
-### `file_write` - Create/overwrite file
-```sh
-#!nesl [@three-char-SHA-256: fw1]
-action = "file_write"
-path = "/home/user/script.py"
-content = <<'EOT_fw1'
-#!/usr/bin/env python3
-print("Hello")
-EOT_fw1
-#!end_fw1
-```
-
-### `file_replace_text` - Replace one occurrence
-```sh
-#!nesl [@three-char-SHA-256: fr2]
-action = "file_replace_text"
-path = "/etc/config.ini"
-old_text = <<'EOT_fr2'
-debug = false
-EOT_fr2
-new_text = <<'EOT_fr2'
-debug = true
-EOT_fr2
-#!end_fr2
-```
-
-### `file_read` - Read single file
-```sh
-#!nesl [@three-char-SHA-256: rd3]
-action = "file_read"
-path = "/var/log/app.log"
-#!end_rd3
-```
-
-### `files_read` - Read multiple files
-```sh
-#!nesl [@three-char-SHA-256: rm4]
-action = "files_read"
-paths = <<'EOT_rm4'
-/tmp/file1.txt
-/tmp/file2.txt
-/usr/local/bin/script.sh
-EOT_rm4
-#!end_rm4
-```
-=== END FILE: /Users/stuart/repos/loaf/use-listener/instruct.md ===
+=== START FILE: /Users/stuart/repos/loaf/tsconfig.json ===
+{
+  "compilerOptions": {
+    // Modern output settings
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    
+    // Strict type checking
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    
+    // Additional checks
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    
+    // Output settings
+    "outDir": "./dist",
+    "rootDir": ".",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    
+    // Module resolution
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    
+    // Path mapping for cleaner imports
+    "baseUrl": "."
+  },
+  "include": [
+    "proj/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/test/**",
+    "**/test-data/**"
+  ]
+}
+=== END FILE: /Users/stuart/repos/loaf/tsconfig.json ===
 
