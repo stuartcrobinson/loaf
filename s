@@ -22,16 +22,12 @@ done
 
 file_list=$(cat <<'EOF'
 
-
-/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/git-integration.test.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-basic.test.ts
-/Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/src/types.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/test-data/integration/example-loaf.yml
-/Users/stuart/repos/loaf/use-listener/instruct.md
-/Users/stuart/repos/loaf/xd5_ref.md
+./unified-design.yaml
+./proj/comp/orch/src/index.ts
+./proj/comp/fs-ops/src/index.ts
+./proj/comp/exec/src/index.ts
+./proj/comp/exec/src/executeCommand.ts
+./proj/comp/orch/doc/ARCH.md
 
 
 

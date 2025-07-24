@@ -1,3 +1,460 @@
+=== START FILE: /Users/stuart/repos/loaf/unified-design.yaml ===
+# AI Coder Tools Schema - Unified Design
+
+# Loaf executes filesystem and runtime commands embedded in LLM output using NESL syntax. It provides deterministic filesystem access and shell command execution for LLM coding agents.
+
+# NESL syntax example:
+
+NESL_synatx_example: |
+  ```sh nesl
+  #!nesl [@three-char-SHA-256: k7m]
+  action = "file_write"
+  path = "/tmp/\"hello\".txt"
+  content = <<'EOT_k7m'
+  Hello world!
+  how are you?
+  EOT_k7m
+  #!end_k7m
+  ```
+
+
+tools:
+  # File Operations
+  file_write:
+    type: write
+    executor: fs-ops
+    description: Create new file while creating any necessary parent dirs. overwrites if already exists
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      content: {type: string, required: true}
+    returns: {success: boolean, error?: string}
+    
+  file_replace_text:
+    type: write
+    executor: fs-ops
+    description: Replace first and only instance of substring in file. must exist only once
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      old_text: {type: string, required: true}
+      new_text: {type: string, required: true}
+    returns: {success: boolean, replacements_made?: integer, error?: string}
+    
+  file_replace_text_range:
+    type: write
+    executor: fs-ops
+    description: Replace first and only instance of text range in file. must exist only once
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      old_text_beginning: {type: string, required: true}
+      old_text_end: {type: string, required: true}
+      new_text: {type: string, required: true}
+    returns: {success: boolean, replacements_made?: integer, error?: string}
+    
+  file_replace_all_text:
+    type: write
+    executor: fs-ops
+    description: Replace each matching substring in file.  Number of matches (count) should usually be known and declared ahead of time.
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      old_text: {type: string, required: true}
+      new_text: {type: string, required: true}
+      count: {type: integer, required: false}
+    returns: {success: boolean, replacements_made?: integer, error?: string}
+    
+
+  #tentative!  under consideration
+  files_replace_all_text:
+    type: write
+    executor: fs-ops
+    description: Replace all occurrences of substring in multiple files. Processes each file independently
+    accessibility: [llm]
+    parameters:
+      paths: {type: string, format: multiline_absolute_paths}
+      old_text: {type: string, required: true}
+      new_text: {type: string, required: true}
+    returns: {
+      success: boolean,
+      results: {
+        type: array,
+        items: {
+          path: string,
+          replacements_made: integer,
+          error?: string
+        }
+      },
+      error?: string  # for complete failure
+    }
+
+
+
+  #tentative!  under consideration.  dont implement yet
+  # actually.... for "in parents" stuff lets just use our exisitng tools, but allow "parent" stuff to be added to the path, like ina  syntax we created earlier but forgot about
+  # like:
+  # path/to/file.md@@## Section 2@@### part 3
+  # path/to/code.rs@@MyModuleOrClass@@myFunction
+  files_replace_text_in_parents:
+    type: write
+    executor: fs-ops
+    description: Replace all occurrences of substring in a given node of a parsed file that supports grouping, like markdown, code (ast), etc 
+    accessibility: [llm]
+    parameters:
+      path: {type: string, required: true}
+      parents: {type: string, required: true, format: multiline_absolute_paths} # need to better define how parents are defined
+      old_text: {type: string, required: true}
+      new_text: {type: string, required: true}
+
+
+  file_append:
+    type: write
+    executor: fs-ops
+    description: Append to file
+    accessibility: [llm]
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      content: {type: string, required: true}
+    returns: {success: boolean, error?: string}
+    
+  file_delete:
+    type: write
+    executor: fs-ops
+    description: Delete file
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+    
+  file_move:
+    type: write
+    executor: fs-ops
+    description: Move/rename file
+    accessibility: [llm]
+    output_display: never
+    primary_param: old_path
+    parameters:
+      old_path: {type: string, required: true, format: absolute_path}
+      new_path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+    
+
+
+  file_read:
+    type: read
+    executor: fs-ops
+    description: Read single file content
+    accessibility: [llm]
+    output_display: always
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, content?: string, error?: string}
+
+  file_read_numbered:
+    type: read
+    executor: fs-ops
+    description: Read file content with line numbers for specified line range
+    accessibility: [llm]
+    output_display: always
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      lines: {type: string, required: false, description: "Line range: single '4' or range '23-43'. If omitted, reads all lines."}
+      delimiter: {type: string, required: false, default: ": ", description: "Delimiter between line number and content"}
+    returns: {success: boolean, content?: string, error?: string}
+
+  file_replace_lines:
+    type: write
+    executor: fs-ops
+    description: Replace specified line range in file with new content
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      lines: {type: string, required: true, description: "Line range: single '4' or range '23-43'"}
+      new_content: {type: string, required: true, description: "Content to replace the line range with"}
+    returns: {success: boolean, lines_replaced?: integer, error?: string}
+
+
+  files_read:
+    type: read
+    executor: fs-ops
+    description: Read and concatenate contents of multiple files into a single string, with clear file delimiters
+    accessibility: [llm]
+    output_display: always
+    primary_param: paths
+    parameters:
+      paths: {
+        type: string, 
+        required: true, 
+        format: "multiline_absolute_paths",
+        description: "One absolute file path per line. Empty lines are ignored."
+      }
+    returns: {
+      success: boolean, 
+      data?: {                          # i guess this is formatted wrong... 
+        paths: array, content: array
+        },
+      error?: string
+    }  
+    example: |
+      paths: |
+        /home/user/projects/src/main.py
+        /home/user/projects/src/utils.py
+        /home/user/projects/README.md
+    
+  # Directory Operations
+  dir_create:
+    type: write
+    executor: fs-ops
+    description: Create directory
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+    
+  dir_delete:
+    type: write
+    executor: fs-ops
+    description: Delete directory
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+    
+  # Read Operations
+  ls:
+    type: read
+    executor: fs-ops
+    description: List directory contents
+    accessibility: [llm]
+    output_display: always
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: 
+      success: boolean
+      data:
+        type: array
+        items:
+          name: string
+          type: string  # file|directory
+          size: integer
+          modified: timestamp
+      error: string
+    
+  grep:
+    type: read
+    description: Search pattern in files
+    accessibility: [llm]
+    output_display: always
+    primary_param: pattern
+    parameters:
+      pattern: {type: string, required: true}
+      path: {type: string, required: true, format: absolute_path}
+      include: {type: string, required: false}
+    returns: 
+      success: boolean
+      data:
+        type: array
+        items:
+          file: string
+          line_number: integer
+          line: string
+      error: string
+    
+  glob:
+    type: read
+    description: Find files matching pattern
+    accessibility: [llm]
+    output_display: always
+    primary_param: pattern
+    parameters:
+      pattern: {type: string, required: true}
+      base_path: {type: string, required: true, format: absolute_path}
+    returns: 
+      success: boolean
+      data:
+        type: array
+        items: string
+      error: string
+    
+  # Execution
+  exec:
+    type: dynamic
+    description: Execute code
+    accessibility: [llm]
+    output_display: conditional  # Check return_output parameter
+    primary_param: lang
+    parameters:
+      code: {type: string, required: true}
+      lang: {type: enum, values: [python, javascript, bash], required: true}
+      version: {type: string, required: false}
+      cwd: {type: string, required: false, format: absolute_path}
+      return_output: {type: boolean, required: false, default: true}
+    returns: {success: boolean, stdout?: string, stderr?: string, exit_code?: integer, error?: string}
+
+  # Context Operations -- for much later.  dont do this until loaf has been integrated into bigfoot, the ai llm coder
+  context_add:
+    type: meta
+    description: Add item to working context (persistent)
+    accessibility: [llm, user]
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+      
+  context_remove:
+    type: meta
+    description: Remove item from working context
+    accessibility: [llm, user]
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+      
+  context_list:
+    type: meta
+    description: List items in working context
+    accessibility: [llm, user]
+    parameters: {}
+    returns: 
+      success: boolean
+      data:
+        type: array
+        items:
+          path: string
+          size: integer
+      error: string
+    
+  context_prune:
+    type: meta
+    description: Remove unused items from working context
+    accessibility: [llm, user]
+    parameters: {}
+    returns: {success: boolean, removed?: array of strings, error?: string}
+    
+  context_clear:
+    type: meta
+    description: Clear all working context items
+    accessibility: [llm, user]
+    parameters: {}
+    returns: {success: boolean, error?: string}
+    
+  # Git Operations
+  git_squash:
+    type: git
+    description: Squash commits
+    slash_command: true
+    parameters:
+      mode: {type: enum, values: [auto_ai, ai_messages, hours, days, contiguous_only=true, msg_contains], required: true}
+      message: {type: string, required: false}
+      hours: {type: integer, required: false, when: "mode=hours"}
+      days: {type: integer, required: false, when: "mode=days"}
+      msg_target: {type: string, required: false, when: "mode=msg_contains"}
+    returns: {success: boolean, error?: string}
+      
+  undo:
+    type: git
+    description: Undo last AI changes
+    accessibility: [user]
+    constraints: ["No changes since last AI operation"]
+    parameters: {}
+    returns: {success: boolean, error?: string}
+    
+  git_step_back:
+    type: git
+    description: Move to previous commit
+    accessibility: [user]
+    behavior: Stashes untracked changes
+    parameters: {}
+    returns: {success: boolean, stashed_files?: array of strings, error?: string}
+    
+  git_step_forward:
+    type: git
+    description: Move to next commit
+    accessibility: [user]
+    behavior: Attempts to pop stashed changes
+    parameters: {}
+    returns: {success: boolean, conflicts?: array of strings, error?: string}
+
+# Transaction Management
+transaction_model:
+  strategy: operation_group
+  conflict_detection:
+    methods:
+      - mtime comparison (fast but unreliable)
+      - checksum comparison (slower but accurate)
+      - git status check (catches git-tracked changes)
+    timing:
+      - Check immediately before operation group
+      - Check after each write operation
+      - Final check before commit
+  implementation:
+    - Begin: git commit current state
+    - Execute: track all operations
+    - Validate: check for external modifications
+    - Success: git commit with summary
+    - Failure: git reset --hard to start
+  atomicity: none  # Git operations are NOT atomic at filesystem level
+  
+# Security Model
+security:
+  path_validation:
+    type: allowlist
+    allowed_roots:
+      - /home/user/projects
+      - /tmp/ai-coder
+    blacklist_patterns:
+      - .*\.ssh.*
+      - .*\.git/config
+      - /etc/.*
+      - /sys/.*
+      - /proc/.*
+  canonicalization: required  # Resolve ../ and symlinks before checking
+  
+# System Configuration
+config:
+  encoding: utf-8
+  line_endings: preserve  # Don't normalize
+  max_file_size: 10485760  # 10MB
+  git_auto_push: false  # Require explicit push
+  commit_message_format: "AI: {operation_summary}"
+
+TODO: |   
+  Transaction Safety: The git-based transaction model has race conditions:
+
+    Gap between "git commit" and first operation
+    Non-atomic filesystem ops vs git state
+
+
+# more TODO 
+
+
+  #tentative!  under consideration.  dont implement yet
+  # actually.... for "in parents" stuff lets just use our exisitng tools, but allow "parent" stuff to be added to the path, like ina  syntax we created earlier but forgot about
+  # like:
+  # path/to/file.md@@## Section 2@@### part 3
+  # path/to/code.rs@@MyModuleOrClass@@myFunction
+
+  # and add a wayt o get file numbers per read.  like an attribute to add to file_read to get the text with line numbers. and then a file_lines_replace that takes in a line range and replacement_text params. or maybe even each as an array.  maybe we should just change nesl-js so its not an error to have repeated values.  cos right now its like impossible to make a lot of small changes to a big code file.  but if we new the line number per each... that would make it easy for LLM... 
+=== END FILE: /Users/stuart/repos/loaf/unified-design.yaml ===
+
 === START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
 import type { LoafAction, ParseResult, ParseError } from '../../nesl-action-parser/src/index.js';
 import { parseNeslResponse } from '../../nesl-action-parser/src/index.js';
@@ -71,13 +528,10 @@ export class Loaf {
     try {
       // Initialize hooks if enabled and not already initialized
       if (this.options.enableHooks && !this.hooksManager) {
-        console.log('[ORCH] Initializing hooks...');
         try {
           const initResult = await this.initializeHooks();
           configCreated = initResult.configCreated || false;
-          console.log('[ORCH] Hooks initialized. HooksManager exists:', !!this.hooksManager);
         } catch (error) {
-          console.log('[ORCH] Hook initialization failed:', error);
           return {
             success: false,
             totalBlocks: 0,
@@ -91,10 +545,8 @@ export class Loaf {
 
       // Run before hooks
       if (this.hooksManager) {
-        console.log('[ORCH] Running before hooks...');
         try {
           const beforeResult = await this.hooksManager.runBefore();
-          console.log('[ORCH] Before hooks result:', beforeResult);
           if (!beforeResult.success) {
             // Before hook failure is fatal
             return {
@@ -110,7 +562,6 @@ export class Loaf {
             };
           }
         } catch (error) {
-          console.log('[ORCH] Before hooks error:', error);
           return {
             success: false,
             totalBlocks: 0,
@@ -120,8 +571,6 @@ export class Loaf {
             fatalError: `Before hooks threw unexpected error: ${error instanceof Error ? error.message : String(error)}`
           };
         }
-      } else {
-        console.log('[ORCH] No hooksManager - skipping before hooks');
       }
 
       // Parse NESL blocks
@@ -166,19 +615,19 @@ export class Loaf {
           const modifiedFiles = new Set<string>();
           const operations: string[] = [];
           const errors: string[] = [];
-          
+
           for (const result of results) {
             if (result.action.startsWith('file_') && result.params.path) {
               modifiedFiles.add(result.params.path);
             }
-            
+
             operations.push(`${result.action}${result.success ? '' : ' (failed)'}`);
-            
+
             if (!result.success && result.error) {
               errors.push(`${result.action}: ${result.error}`);
             }
           }
-          
+
           const afterContext: HookContext = {
             success: executionSuccess,
             executedActions: results.length,
@@ -188,7 +637,7 @@ export class Loaf {
             errors: errors.join('; '),
             errorCount: errors.length
           };
-          
+
           const afterResult = await this.hooksManager.runAfter(afterContext);
           if (!afterResult.success) {
             // After hook failure is non-fatal but recorded
@@ -232,7 +681,7 @@ export class Loaf {
    */
   private async initializeHooks(): Promise<{ configCreated: boolean }> {
     let configCreated = false;
-    
+
     if (this.options.hooks) {
       // Use provided configuration
       // Wrap the hooks in the expected HooksConfig structure
@@ -246,11 +695,9 @@ export class Loaf {
       const loafYmlPath = join(this.options.repoPath!, 'loaf.yml');
       try {
         await access(loafYmlPath);
-        console.log('[ORCH] Found loaf.yml at:', loafYmlPath);
         this.hooksManager = new HooksManager(undefined, this.options.repoPath);
-        const loadedConfig = await this.hooksManager.loadConfig(loafYmlPath);
-        console.log('[ORCH] Loaded config:', JSON.stringify(loadedConfig, null, 2));
-        // Don't create a new instance - loadConfig updates the existing one
+        await this.hooksManager.loadAndSetConfig(loafYmlPath);
+        // Don't create a new instance - loadAndSetConfig updates the existing one
       } catch (error: any) {
         if (error.code === 'ENOENT' && this.options.createConfigIfMissing) {
           // Create starter config
@@ -258,14 +705,13 @@ export class Loaf {
           if (configCreated) {
             // Load the newly created config
             this.hooksManager = new HooksManager(undefined, this.options.repoPath);
-            const config = await this.hooksManager.loadConfig(loafYmlPath);
-            this.hooksManager = new HooksManager(config, this.options.repoPath);
+            await this.hooksManager.loadAndSetConfig(loafYmlPath);
           }
         }
         // If not ENOENT or createConfigIfMissing is false, hooks remain disabled
       }
     }
-    
+
     return { configCreated };
   }
 
@@ -412,1071 +858,1009 @@ export class Loaf {
 }
 === END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
 
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
-import { promisify } from 'util';
-import { exec } from 'child_process';
-import { readFile } from 'fs/promises';
-import { interpolateCommand } from './interpolateCommand.js';
-import { validateCommand } from './validateCommand.js';
-import { formatHookResult } from './formatHookResult.js';
-import { parseYamlConfig } from './parseYamlConfig.js';
-import { validateConfig } from './validateConfig.js';
-import type { CommandResult } from './types.js';
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts ===
+/**
+ * fs-ops - File system operations executor for loaf
+ * 
+ * Handles all file and directory operations from parsed NESL actions
+ */
 
-// Public types
-export interface HooksConfig {
-  version?: number;
-  hooks?: {
-    before?: Command[];
-    after?: Command[];
-  };
-  vars?: Record<string, string>;
-}
+import type { LoafAction } from '../../nesl-action-parser/src/index.js';
+import { writeFile, mkdir, unlink, rename, readFile } from 'fs/promises';
+import { dirname } from 'path';
+import { formatNodeError } from './formatNodeError.js';
+import { fileExists } from './fileSystemUtils.js';
+import { replaceText } from './replaceText.js';
+import { extractNumberedLines } from './extractNumberedLines.js';
 
-export interface Command {
-  run: string;
-  continueOnError?: boolean;
-  timeout?: number;
-  cwd?: string;
-}
-
-export interface HookContext {
-  [key: string]: string | number | boolean;
-}
-
-export interface HookResult {
+export interface FileOpResult {
   success: boolean;
-  executed: number;
-  errors?: Array<{
-    command: string;
-    error: string;
-  }>;
+  data?: any;
+  error?: string;
 }
 
-// Promisified exec
-const execAsync = promisify(exec);
-
-// Main class
-export class HooksManager {
-  private config: HooksConfig;
-  private repoPath: string;
-
-  constructor(config?: HooksConfig, repoPath?: string) {
-    this.config = config || { hooks: {}, vars: {} };
-    this.repoPath = repoPath || process.cwd();
+export class FileOpError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public path?: string,
+    public operation?: string
+  ) {
+    super(message);
+    this.name = 'FileOpError';
   }
+}
 
-  async runBefore(context?: HookContext): Promise<HookResult> {
-    const commands = this.config.hooks?.before || [];
-    console.log('[HOOKS] runBefore called. Commands:', commands);
-    return this.runCommands(commands, context);
-  }
+/**
+ * Execute a file system operation from a parsed NESL action
+ * Never throws - all errors returned in result
+ */
+export async function executeFileOperation(action: LoafAction): Promise<FileOpResult> {
+  try {
+    const handler = actionHandlers[action.action];
 
-  async runAfter(context?: HookContext): Promise<HookResult> {
-    const commands = this.config.hooks?.after || [];
-    return this.runCommands(commands, context);
-  }
 
-  async loadConfig(path: string): Promise<HooksConfig> {
-    try {
-      const content = await readFile(path, 'utf8');
-      const config = parseYamlConfig(content);
-      
-      const validation = validateConfig(config);
-      if (!validation.valid) {
-        throw new Error(`Invalid config: ${validation.error}`);
-      }
-      
-      this.config = config;
-      return config;
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        throw new Error(`Config file not found: ${path}`);
-      }
-      throw error;
-    }
-  }
 
-  private async runCommands(commands: Command[], context?: HookContext): Promise<HookResult> {
-    const results: CommandResult[] = [];
-    console.log('[HOOKS] runCommands called with', commands.length, 'commands');
-    
-    for (const cmd of commands) {
-      console.log('[HOOKS] Executing command:', cmd.run);
-      try {
-        // Interpolate variables
-        const interpolatedCmd = interpolateCommand(cmd, this.config.vars || {}, context);
-        
-        // Validate command
-        const validation = validateCommand(interpolatedCmd);
-        if (!validation.valid) {
-          const result: CommandResult = {
-            command: cmd.run,
-            success: false,
-            error: validation.error || 'Invalid command'
-          };
-          results.push(result);
-          
-          if (!cmd.continueOnError) {
-            break;
-          }
-          continue;
-        }
-        
-        // Execute command
-        const result = await this.executeCommand(interpolatedCmd);
-        console.log(`[HOOKS] Command result for "${cmd.run}":`, {
-          success: result.success,
-          stdout: result.stdout?.slice(0, 100),
-          stderr: result.stderr?.slice(0, 100),
-          error: result.error
-        });
-        
-        // Debug: Check .hook-trace file after each command
-        if (cmd.run.includes('.hook-trace')) {
-          const { existsSync, readFileSync } = await import('fs');
-          const tracePath = `${this.repoPath}/.hook-trace`;
-          if (existsSync(tracePath)) {
-            const content = readFileSync(tracePath, 'utf8');
-            console.log(`[HOOKS] After "${cmd.run}", .hook-trace contains:`, JSON.stringify(content));
-          } else {
-            console.log(`[HOOKS] After "${cmd.run}", .hook-trace does not exist`);
-          }
-        }
-        
-        results.push({
-          command: cmd.run,
-          ...result
-        });
-        
-        if (!result.success && !cmd.continueOnError) {
-          break;
-        }
-      } catch (error: any) {
-        const result: CommandResult = {
-          command: cmd.run,
-          success: false,
-          error: error.message
-        };
-        results.push(result);
-        
-        if (!cmd.continueOnError) {
-          break;
-        }
-      }
-    }
-    
-    return formatHookResult(results);
-  }
-
-  private async executeCommand(cmd: Command): Promise<Omit<CommandResult, 'command'>> {
-    const timeout = cmd.timeout || 30000;
-    const options = {
-      cwd: cmd.cwd || this.repoPath,
-      timeout,
-      encoding: 'utf8' as const,
-      shell: true  // Ensure shell interpretation for redirects
-    };
-    
-    try {
-      const { stdout, stderr } = await execAsync(cmd.run, options);
-      return {
-        success: true,
-        stdout: stdout || '',
-        stderr: stderr || ''
-      };
-    } catch (error: any) {
+    if (!handler) {
       return {
         success: false,
-        error: error.message,
-        stdout: error.stdout || '',
-        stderr: error.stderr || ''
+        error: `Unknown action: ${action.action}`
       };
     }
+
+    const result = await handler(action);
+    return result;
+
+  } catch (error: any) {
+    // This should never happen - handlers should catch their own errors
+    return {
+      success: false,
+      error: `Unexpected error in executeFileOperation: ${error.message}`
+    };
   }
 }
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
 
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/git-integration.test.ts ===
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { execSync } from 'child_process';
-import { Loaf } from '../../../orch/src/index.js';
+/**
+ * Handle file_move action - moves/renames a file
+ * Creates parent directories for destination if needed
+ * Overwrites destination if it exists
+ */
+async function handleFileMove(action: LoafAction): Promise<FileOpResult> {
+  const { old_path, new_path } = action.parameters;
 
-const TEST_BASE = '/tmp/t_hooks_git_integration';
-const REPO_DIR = join(TEST_BASE, 'repo');
-const REMOTE_DIR = join(TEST_BASE, 'remote.git');
+  try {
+    // Pre-flight check for better error messages
+    const sourceExists = await fileExists(old_path);
 
-describe('Git Hooks Integration', () => {
-  beforeEach(() => {
-    // Clean slate
-    if (existsSync(TEST_BASE)) {
-      rmSync(TEST_BASE, { recursive: true, force: true });
+    if (!sourceExists) {
+      return {
+        success: false,
+        error: `file_move: Source file not found '${old_path}' (ENOENT)`
+      };
     }
-    mkdirSync(TEST_BASE, { recursive: true });
-    
-    // Initialize bare remote
-    execSync(`git init --bare ${REMOTE_DIR}`, { stdio: 'pipe' });
-    
-    // Initialize local repo
-    mkdirSync(REPO_DIR);
-    execSync('git init', { cwd: REPO_DIR, stdio: 'pipe' });
-    execSync('git config user.email "test@example.com"', { cwd: REPO_DIR });
-    execSync('git config user.name "Test User"', { cwd: REPO_DIR });
-    execSync(`git remote add origin ${REMOTE_DIR}`, { cwd: REPO_DIR });
-    
-    // Initial commit (can't push empty repo)
-    writeFileSync(join(REPO_DIR, 'README.md'), '# Test Repo\n');
-    execSync('git add README.md', { cwd: REPO_DIR });
-    execSync('git commit -m "Initial commit"', { cwd: REPO_DIR });
-    execSync('git push -u origin main', { cwd: REPO_DIR });
-  });
 
-  afterEach(() => {
-    if (existsSync(TEST_BASE)) {
-      rmSync(TEST_BASE, { recursive: true, force: true });
-    }
-  });
+    // Check if destination exists (for overwrote flag)
+    const destExists = await fileExists(new_path);
 
-  test('happy path - stash, modify, commit, push', async () => {
-    // Setup: Create loaf.yml with git hooks
-    // Use relative paths since hooks run with cwd=REPO_DIR
-    const loafConfig = `version: 1
-hooks:
-  before:
-    - run: echo "BEFORE_HOOK_RAN" > .hook-trace
-    - run: git add .hook-trace
-    - run: git stash push --keep-index --include-untracked
-      continueOnError: true
-      
-  after:
-    - run: echo "AFTER_HOOK_RAN" >> .hook-trace
-    - run: git add -A
-    - run: git commit -m "\${COMMIT_MSG}"
-    - run: git push origin main
+    // Create parent directories for destination
+    const parentDir = dirname(new_path);
+    await mkdir(parentDir, { recursive: true });
 
-vars:
-  COMMIT_MSG: "AI-assisted changes via NESL"
-`;
-    writeFileSync(join(REPO_DIR, 'loaf.yml'), loafConfig);
-    
-    // Create uncommitted changes that should be stashed
-    writeFileSync(join(REPO_DIR, 'uncommitted.txt'), 'This should be stashed');
-    writeFileSync(join(REPO_DIR, 'staged.txt'), 'This is staged');
-    execSync('git add staged.txt', { cwd: REPO_DIR });
-    
-    // NESL input that creates new files
-    const neslInput = `#!nesl [@three-char-SHA-256: gf1]
-action = "file_write"
-path = "${REPO_DIR}/generated.txt"
-content = "Generated by NESL"
-#!end_gf1
+    // Move the file
+    await rename(old_path, new_path);
 
-#!nesl [@three-char-SHA-256: gf2]
-action = "file_write"  
-path = "${REPO_DIR}/src/feature.js"
-content = "export const feature = () => 'implemented';"
-#!end_gf2`;
-
-    // Execute with hooks - force config reload
-    console.log('\n=== TEST DIAGNOSTICS ===');
-    console.log('REPO_DIR:', REPO_DIR);
-    console.log('loaf.yml exists:', existsSync(join(REPO_DIR, 'loaf.yml')));
-    
-    // Show loaf.yml content
-    const loafYmlContent = readFileSync(join(REPO_DIR, 'loaf.yml'), 'utf8');
-    console.log('loaf.yml content:');
-    console.log(loafYmlContent);
-    console.log('--- end loaf.yml ---\n');
-    
-    // Check if .hook-trace exists before execution
-    console.log('.hook-trace exists before execution:', existsSync(join(REPO_DIR, '.hook-trace')));
-    
-    const loaf = new Loaf({ 
-      repoPath: REPO_DIR,
-      enableHooks: true,
-      hooks: undefined  // Explicitly undefined to trigger loaf.yml load
-    });
-    
-    console.log('\n=== EXECUTING NESL ===');
-    const result = await loaf.execute(neslInput);
-    
-    // Debug: log the full result to see what's happening
-    console.log('\nExecution result:', JSON.stringify(result, null, 2));
-    
-    // Check hook trace immediately after execution
-    console.log('\n=== POST-EXECUTION DIAGNOSTICS ===');
-    console.log('.hook-trace exists after execution:', existsSync(join(REPO_DIR, '.hook-trace')));
-    if (existsSync(join(REPO_DIR, '.hook-trace'))) {
-      const traceContent = readFileSync(join(REPO_DIR, '.hook-trace'), 'utf8');
-      console.log('.hook-trace raw content:', JSON.stringify(traceContent));
-      console.log('.hook-trace display:\n' + traceContent);
-    }
-    
-    // Check git status
-    console.log('\nGit status:');
-    console.log(execSync('git status --porcelain', { cwd: REPO_DIR, encoding: 'utf8' }));
-    
-    // Check for hook errors in result
-    if (result.hookErrors) {
-      console.log('\nHook errors found:', result.hookErrors);
-    }
-    
-    // Verify execution succeeded
-    expect(result.success).toBe(true);
-    expect(result.executedActions).toBe(2);
-    expect(result.hookErrors).toBeUndefined();
-    
-    // Verify working directory is clean (all changes committed)
-    const status = execSync('git status --porcelain', { 
-      cwd: REPO_DIR, 
-      encoding: 'utf8' 
-    }).trim();
-    expect(status).toBe('');
-    
-    // Verify files were created and committed
-    expect(existsSync(join(REPO_DIR, 'generated.txt'))).toBe(true);
-    expect(existsSync(join(REPO_DIR, 'src/feature.js'))).toBe(true);
-    
-    // Verify stash was created (should have our uncommitted files)
-    const stashList = execSync('git stash list', { 
-      cwd: REPO_DIR, 
-      encoding: 'utf8' 
-    });
-    expect(stashList).toContain('stash@{0}');
-    
-    // Verify commit was made with correct message
-    const lastCommit = execSync('git log -1 --pretty=%B', { 
-      cwd: REPO_DIR, 
-      encoding: 'utf8' 
-    }).trim();
-    expect(lastCommit).toBe('AI-assisted changes via NESL');
-    
-    // Verify push succeeded by checking remote
-    const remoteLogs = execSync('git log --oneline', { 
-      cwd: REMOTE_DIR, 
-      encoding: 'utf8' 
-    });
-    expect(remoteLogs).toContain('AI-assisted changes via NESL');
-    
-    // Poll-based verification that remote has the files
-    // (Clone to verify push worked completely)
-    const cloneDir = join(TEST_BASE, 'verify-clone');
-    execSync(`git clone ${REMOTE_DIR} ${cloneDir}`, { stdio: 'pipe' });
-    
-    let attempts = 0;
-    const maxAttempts = 10;
-    let filesExist = false;
-    
-    while (attempts < maxAttempts && !filesExist) {
-      filesExist = existsSync(join(cloneDir, 'generated.txt')) && 
-                   existsSync(join(cloneDir, 'src/feature.js'));
-      if (!filesExist) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
-      }
-    }
-    
-    expect(filesExist).toBe(true);
-    
-    // Verify file contents in clone
-    const generatedContent = readFileSync(join(cloneDir, 'generated.txt'), 'utf8');
-    expect(generatedContent).toBe('Generated by NESL');
-    
-    // CRITICAL: Verify hooks actually executed
-    const hookTrace = readFileSync(join(REPO_DIR, '.hook-trace'), 'utf8');
-    expect(hookTrace).toContain('BEFORE_HOOK_RAN');
-    expect(hookTrace).toContain('AFTER_HOOK_RAN');
-    
-    // Verify the specific files that were committed (not just that a commit exists)
-    const commitFiles = execSync('git show --name-only --pretty="" HEAD', {
-      cwd: REPO_DIR,
-      encoding: 'utf8'
-    }).trim().split('\n');
-    expect(commitFiles).toContain('generated.txt');
-    expect(commitFiles).toContain('src/feature.js');
-    expect(commitFiles).not.toContain('uncommitted.txt'); // Should be in stash, not commit
-  });
-});
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/git-integration.test.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-basic.test.ts ===
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, readFileSync, existsSync } from 'fs';
-import { join } from 'path';
-import { HooksManager } from '../../src/index.js';
-
-const TEST_DIR = '/tmp/t_hooks_test';
-
-describe('HooksManager Integration', () => {
-  beforeEach(() => {
-    // Create test directory
-    if (!existsSync(TEST_DIR)) {
-      mkdirSync(TEST_DIR, { recursive: true });
-    }
-  });
-
-  afterEach(() => {
-    // Clean up test directory
-    if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
-    }
-  });
-
-  test('executes before and after hooks', async () => {
-    const config = {
-      hooks: {
-        before: [
-          { run: `echo 'before' > ${TEST_DIR}/before.txt` }
-        ],
-        after: [
-          { run: `echo 'after' > ${TEST_DIR}/after.txt` }
-        ]
+    const result: FileOpResult = {
+      success: true,
+      data: {
+        old_path,
+        new_path
       }
     };
 
-    const hooks = new HooksManager(config);
-    
-    // Run before hooks
-    const beforeResult = await hooks.runBefore();
-    expect(beforeResult.success).toBe(true);
-    expect(beforeResult.executed).toBe(1);
-    expect(existsSync(`${TEST_DIR}/before.txt`)).toBe(true);
-    expect(readFileSync(`${TEST_DIR}/before.txt`, 'utf8').trim()).toBe('before');
-
-    // Run after hooks
-    const afterResult = await hooks.runAfter();
-    expect(afterResult.success).toBe(true);
-    expect(afterResult.executed).toBe(1);
-    expect(existsSync(`${TEST_DIR}/after.txt`)).toBe(true);
-    expect(readFileSync(`${TEST_DIR}/after.txt`, 'utf8').trim()).toBe('after');
-  });
-
-  test('variable interpolation works', async () => {
-    const config = {
-      hooks: {
-        before: [
-          { run: `echo '${TEST_DIR}/\${MSG}' > ${TEST_DIR}/var.txt` }
-        ]
-      },
-      vars: {
-        MSG: 'hello-world'
-      }
-    };
-
-    const hooks = new HooksManager(config);
-    const result = await hooks.runBefore();
-    
-    expect(result.success).toBe(true);
-    expect(readFileSync(`${TEST_DIR}/var.txt`, 'utf8').trim()).toBe(`${TEST_DIR}/hello-world`);
-  });
-
-  test('context overrides vars', async () => {
-    const config = {
-      hooks: {
-        after: [
-          { run: `echo '\${STATUS}' > ${TEST_DIR}/status.txt` }
-        ]
-      },
-      vars: {
-        STATUS: 'from-config'
-      }
-    };
-
-    const hooks = new HooksManager(config);
-    const result = await hooks.runAfter({ STATUS: 'from-context' });
-    
-    expect(result.success).toBe(true);
-    expect(readFileSync(`${TEST_DIR}/status.txt`, 'utf8').trim()).toBe('from-context');
-  });
-
-  test('continueOnError allows execution to continue', async () => {
-    const config = {
-      hooks: {
-        before: [
-          { run: 'false', continueOnError: true },  // Will fail
-          { run: `echo 'second' > ${TEST_DIR}/second.txt` }
-        ]
-      }
-    };
-
-    const hooks = new HooksManager(config);
-    const result = await hooks.runBefore();
-    
-    expect(result.success).toBe(false);
-    expect(result.executed).toBe(2);
-    expect(result.errors).toHaveLength(1);
-    expect(existsSync(`${TEST_DIR}/second.txt`)).toBe(true);
-  });
-
-  test('stops on error without continueOnError', async () => {
-    const config = {
-      hooks: {
-        before: [
-          { run: 'false' },  // Will fail
-          { run: `echo 'should not run' > ${TEST_DIR}/should-not-exist.txt` }
-        ]
-      }
-    };
-
-    const hooks = new HooksManager(config);
-    const result = await hooks.runBefore();
-    
-    expect(result.success).toBe(false);
-    expect(result.executed).toBe(1);
-    expect(result.errors).toHaveLength(1);
-    expect(existsSync(`${TEST_DIR}/should-not-exist.txt`)).toBe(false);
-  });
-
-  test('timeout kills long-running commands', async () => {
-    const config = {
-      hooks: {
-        before: [
-          { run: 'sleep 5', timeout: 100 }  // 100ms timeout
-        ]
-      }
-    };
-
-    const hooks = new HooksManager(config);
-    const start = Date.now();
-    const result = await hooks.runBefore();
-    const duration = Date.now() - start;
-    
-    expect(result.success).toBe(false);
-    expect(result.errors).toHaveLength(1);
-    expect(duration).toBeLessThan(1000); // Should timeout quickly
-  });
-
-  test('loads config from YAML file', async () => {
-    const yamlPath = `${TEST_DIR}/loaf.yml`;
-    const yamlContent = `
-version: 1
-hooks:
-  before:
-    - run: echo 'from yaml' > ${TEST_DIR}/yaml.txt
-vars:
-  TEST: value
-`;
-    
-    // Write YAML file
-    const { writeFileSync } = await import('fs');
-    writeFileSync(yamlPath, yamlContent);
-
-    const hooks = new HooksManager();
-    const config = await hooks.loadConfig(yamlPath);
-    
-    expect(config.version).toBe(1);
-    expect(config.vars?.TEST).toBe('value');
-    
-    // Run hooks to verify they work
-    const result = await hooks.runBefore();
-    expect(result.success).toBe(true);
-    expect(readFileSync(`${TEST_DIR}/yaml.txt`, 'utf8').trim()).toBe('from yaml');
-  });
-
-  test('custom cwd works', async () => {
-    const subDir = `${TEST_DIR}/subdir`;
-    mkdirSync(subDir, { recursive: true });
-    
-    // Use Node.js to create a cross-platform test
-    // This avoids shell-specific differences
-    const testScript = process.platform === 'win32' 
-      ? 'node -e "require(\'fs\').writeFileSync(\'test-cwd.txt\', \'cwd-test\')"'
-      : 'node -e "require(\'fs\').writeFileSync(\'test-cwd.txt\', \'cwd-test\')"';
-    
-    const config = {
-      hooks: {
-        before: [
-          { run: testScript, cwd: subDir }
-        ]
-      }
-    };
-
-    const hooks = new HooksManager(config);
-    const result = await hooks.runBefore();
-    
-    expect(result.success).toBe(true);
-    
-    // Verify the file was created in the correct directory
-    const testFilePath = join(subDir, 'test-cwd.txt');
-    expect(existsSync(testFilePath)).toBe(true);
-    expect(readFileSync(testFilePath, 'utf8')).toBe('cwd-test');
-  });
-});
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-basic.test.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts ===
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { readFileSync, existsSync, mkdirSync, rmSync } from 'fs';
-import { join } from 'path';
-import { Loaf } from '../../src/index.js';
-import { parseTestFile } from '../utils/parseTestFile.js';
-
-describe('Hooks Integration', () => {
-  const testDataPath = join(import.meta.dirname, '../../test-data/integration/hooks-integration.md');
-  const testCases = parseTestFile(testDataPath);
-
-  beforeEach(() => {
-    // Ensure temp directories exist
-    if (!existsSync('/tmp')) {
-      throw new Error('Tests require /tmp directory');
+    if (destExists) {
+      result.data.overwrote = true;
     }
-  });
 
-  afterEach(() => {
-    // Cleanup test directories
-    const dirs = [
-      '/tmp/t_hooks_integration_001',
-      '/tmp/t_hooks_integration_002',
-      '/tmp/t_hooks_integration_003',
-      '/tmp/t_hooks_integration_004',
-      '/tmp/t_hooks_integration_005'
-    ];
-    
-    for (const dir of dirs) {
-      if (existsSync(dir)) {
-        rmSync(dir, { recursive: true, force: true });
-      }
-    }
-  });
+    return result;
 
-  for (const testCase of testCases) {
-    test(testCase.name, async () => {
-      // Setup
-      if (testCase.config?.repoPath && !existsSync(testCase.config.repoPath)) {
-        mkdirSync(testCase.config.repoPath, { recursive: true });
-      }
-
-      // Create Loaf instance with test config
-      const loaf = new Loaf(testCase.config);
-
-      // Execute
-      const result = await loaf.execute(testCase.input);
-      
-      // Debug output
-      console.log(`\n=== Test: ${testCase.name} ===`);
-      console.log('Config:', JSON.stringify(testCase.config, null, 2));
-      console.log('Result:', JSON.stringify(result, null, 2));
-
-      // Basic assertions
-      expect(result.success).toBe(testCase.expected.success);
-      expect(result.totalBlocks).toBe(testCase.expected.totalBlocks);
-      expect(result.executedActions).toBe(testCase.expected.executedActions);
-
-      // Verify hook errors if expected
-      if (testCase.expected.hookErrors) {
-        expect(result.hookErrors).toBeDefined();
-        if (testCase.expected.hookErrors.before) {
-          expect(result.hookErrors?.before).toBeDefined();
-          expect(result.hookErrors?.before?.length).toBeGreaterThan(0);
-        }
-      }
-
-      // Verify fatal error if expected
-      if (testCase.expected.fatalError) {
-        expect(result.fatalError).toBe(testCase.expected.fatalError);
-      }
-
-      // Test-specific verifications
-      if (testCase.verify) {
-        const repoPath = testCase.config?.repoPath;
-        
-        if (!repoPath) {
-          throw new Error(`Test ${testCase.name} has verify=true but no repoPath in config`);
-        }
-        
-        switch (testCase.name) {
-          case '001-basic-hooks-execution': {
-            const tracePath = join(repoPath, 'hook-trace.txt');
-            expect(existsSync(tracePath)).toBe(true);
-            const trace = readFileSync(tracePath, 'utf8');
-            expect(trace).toContain('BEFORE_RAN');
-            expect(trace).toContain('AFTER_RAN');
-            expect(trace).toContain('FILES_MODIFIED=');
-            break;
-          }
-          
-          case '002-hooks-with-failures': {
-            const resultPath = join(repoPath, 'result.txt');
-            expect(existsSync(resultPath)).toBe(true);
-            const content = readFileSync(resultPath, 'utf8');
-            expect(content).toContain('SUCCESS=false');
-            expect(content).toContain('ERRORS=1');
-            break;
-          }
-          
-          case '003-before-hook-failure-aborts': {
-            const testPath = join(repoPath, 'test.txt');
-            const afterPath = join(repoPath, 'after.txt');
-            expect(existsSync(testPath)).toBe(false);
-            expect(existsSync(afterPath)).toBe(false);
-            break;
-          }
-          
-          case '004-context-variables-in-hooks': {
-            const summaryPath = join(repoPath, 'summary.txt');
-            expect(existsSync(summaryPath)).toBe(true);
-            const summary = readFileSync(summaryPath, 'utf8');
-            expect(summary).toContain('Total blocks: 2');
-            expect(summary).toContain('Executed: 2');
-            expect(summary).toContain('Operations: file_write,file_read');
-            break;
-          }
-          
-          case '005-loaf-yml-auto-creation': {
-            const configPath = join(repoPath, 'loaf.yml');
-            expect(existsSync(configPath)).toBe(true);
-            const testPath = join(repoPath, 'test.txt');
-            expect(existsSync(testPath)).toBe(true);
-            break;
-          }
-        }
-      }
-    });
+  } catch (error: any) {
+    return {
+      success: false,
+      error: formatNodeError(error, old_path, 'rename', new_path)
+    };
   }
-});
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/types.ts ===
-// Re-export public types from index
-export type { HooksConfig, Command, HookContext, HookResult } from './index.js';
-
-// Internal types
-export interface CommandResult {
-  command: string;
-  success: boolean;
-  error?: string;
-  stdout?: string;
-  stderr?: string;
 }
 
-export interface ValidationResult {
-  valid: boolean;
-  error?: string;
+/**
+ * Handle file_delete action - removes a file
+ */
+async function handleFileDelete(action: LoafAction): Promise<FileOpResult> {
+  const { path } = action.parameters;
+
+  try {
+    await unlink(path);
+
+    return {
+      success: true,
+      data: {
+        path
+      }
+    };
+
+  } catch (error: any) {
+    return {
+      success: false,
+      error: formatNodeError(error, path, 'unlink')
+    };
+  }
 }
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/types.ts ===
 
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test-data/integration/example-loaf.yml ===
-# Example loaf.yml configuration
-version: 1
+/**
+ * Handle file_write action - writes/creates/overwrites a file with content
+ * Automatically creates parent directories if needed
+ */
+async function handleFileWrite(action: LoafAction): Promise<FileOpResult> {
+  const { path, content } = action.parameters;
 
-hooks:
-  before:
-    - run: git stash --include-untracked
-      
-  after:
-    - run: git add -A
-    - run: git commit -m "${COMMIT_MSG}"
-    - run: git push
-      continueOnError: true
-      timeout: 10000  # 10s for slow networks
+  try {
+    // Create parent directories if needed
+    const parentDir = dirname(path);
+    await mkdir(parentDir, { recursive: true });
 
-# Variables available in commands
-vars:
-  COMMIT_MSG: "AI-assisted changes"
-  BRANCH: "main"
-  REMOTE: "origin"
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test-data/integration/example-loaf.yml ===
+    // Write file
+    await writeFile(path, content, 'utf8');
+    const bytesWritten = Buffer.byteLength(content, 'utf8');
 
-=== START FILE: /Users/stuart/repos/loaf/use-listener/instruct.md ===
-# NESL Tool API Reference
-
-## NESL Syntax example 
-
-
-```sh nesl
-#!nesl [@three-char-SHA-256: q8r]
-action = "tool_name"
-param1 = <<'EOT_q8r'
-value line 1
-
- value line 2
-EOT_q8r
-param2 = "value"
-#!end_q8r
-```
-
-equivalent json:
-
-```json
-{
- "action": "tool_name",
- "param1": "value line 1\n\n value line 2",
- "param2": "value"
-}
-```
-
-**Critical constraints:**
-- Paths: always absolute
-- Whitespace: preserved exactly in heredocs
-
-## Tools
-
-### `file_write` - Create/overwrite file
-```sh
-#!nesl [@three-char-SHA-256: fw1]
-action = "file_write"
-path = "/home/user/script.py"
-content = <<'EOT_fw1'
-#!/usr/bin/env python3
-print("Hello")
-EOT_fw1
-#!end_fw1
-```
-
-### `file_replace_text` - Replace one occurrence
-```sh
-#!nesl [@three-char-SHA-256: fr2]
-action = "file_replace_text"
-path = "/etc/config.ini"
-old_text = <<'EOT_fr2'
-debug = false
-EOT_fr2
-new_text = <<'EOT_fr2'
-debug = true
-EOT_fr2
-#!end_fr2
-```
-
-### `file_read` - Read single file
-```sh
-#!nesl [@three-char-SHA-256: rd3]
-action = "file_read"
-path = "/var/log/app.log"
-#!end_rd3
-```
-
-### `files_read` - Read multiple files
-```sh
-#!nesl [@three-char-SHA-256: rm4]
-action = "files_read"
-paths = <<'EOT_rm4'
-/tmp/file1.txt
-/tmp/file2.txt
-/usr/local/bin/script.sh
-EOT_rm4
-#!end_rm4
-```
-=== END FILE: /Users/stuart/repos/loaf/use-listener/instruct.md ===
-
-=== START FILE: /Users/stuart/repos/loaf/xd5_ref.md ===
-# XD5 LLM Quick Reference
-
-## Core Principle
-Documentation maintains dependency graphs for deterministic context assembly. Initial dependencies are hypotheses - implementation discovers reality. The STOP protocol ensures documentation evolves to match actual dependencies.
-
-## File Structure
-```
-<repo>/
-└── proj/
-    ├── doc/
-    │   ├── API.md        # ⚠️ CRITICAL: All dependencies + exports
-    │   ├── ABSTRACT.md   # 60-word purpose + 300-word overview + brief spec in EARS format (The Easy Approach to Requirements Syntax)
-    │   └── ARCH.md       # Technical decisions, constraints
-    ├── test-data/        # Test cases as JSON/MD files
-    │   ├── unit/         # Unit test data
-    │   └── integration/  # Integration test data
-    ├── test/             # Minimal harnesses loading test-data
-    │   ├── unit/         # Unit test harnesses
-    │   └── integration/  # Integration test harnesses
-    ├── test-intn/        # Integration tests for dependencies
-    ├── src/              # Implementation
-    └── comp/             # Sub-components (recursive) - do not need 'proj' dirs
-```
-
-## API.md Template
-```markdown
-# Component: {name}
-
-## Component Type
-standard | types-only
-
-## Dependencies
-[Provisional - updated via STOP protocol when implementation reveals actual needs]
-
-Mark internal component status: [PLANNED], [IN-PROGRESS], or [IMPLEMENTED]
-External dependencies do not need status markers.
-
-```yaml
-dependencies:
-  # Initial hypothesis based on design
-  proj/comp/payment:                                       # [PLANNED]
-    functions: [validateCard, processRefund] # may change 
-    types: [PaymentResult, CardType]
-    errors: [PaymentError]
-  
-  proj/comp/auth:                                          # [IMPLEMENTED]
-    functions: [checkPermission, validateToken]
-    types: [User, TokenPayload]
-  
-  proj/comp/logger:                                        # [IN-PROGRESS]
-    functions: [logTransaction]  # Audit requirement
-  
-  proj/comp/payment-types: "*"  # Wildcard for types-only  # [IMPLEMENTED] 
-  
-  external/lodash:
-    functions: [groupBy, mapValues]
-  
-  external/@stripe/stripe-js:
-    types: [Stripe, PaymentIntent]
-    functions: [loadStripe]
-```
-
-## Exports
-[Structured YAML for dependency graph tooling, then prose descriptions]
-
-```yaml
-exports:
-  functions: [functionName1, functionName2]
-  types: [Type1, Type2, Type3]
-  classes:
-    ClassName:
-      methods: [method1, method2]
-  errors: [CustomError1, CustomError2]
-```
-
-### {functionName}
-- **Signature**: `{functionName}(param: Type) -> ReturnType`
-- **Purpose**: Single sentence.
-- **Throws**: `{ErrorType}` when {condition}
-- **Test-data**: `test-data/{path}/{functionName}.json` [PLANNED|IMPLEMENTED]
-
-
-
-## Workflow
-
-### Core Flow: Design → Test → Implement
-
-1. **Write docs**: ABSTRACT.md → ARCH.md → API.md (provisional)
-2. **Design tests**: E2E hypothesis → Decompose → Unit tests  
-3. **Implement**: Discover real dependencies → Update docs → Complete code
-
-### Test Authority & Evolution
-
-**Tests Are Source of Truth (But Not Infallible)**
-- Tests define what code SHOULD do
-- During debug: ALWAYS fix code to match tests first
-- Test errors discovered? Ask human: "I believe test X is incorrect because Y. Should I update it?"
-- NEVER auto-modify tests while debugging
-- Each test change needs explicit approval
-
-### Detailed Flow
-
-1. **E2E Test Hypothesis** - Write component test-data (expect evolution)
-2. **Pseudocode** - Rough implementation to discover structure
-3. **Extract Functions** - Identify & extract all pure functions
-4. **Unit Tests** - Write test-data for each function
-5. **Implement Functions** - Red/green/debug (fix code, not tests)
-6. **Revise E2E Tests** - Align with discovered behavior (ask human)
-7. **Wire Component** - Connect tested functions
-8. **Debug E2E** - Fix code until green
-
-**Debug Protocol**: Test fails? → Try fixing code → Still failing? → Consider test error → Request human approval for any test change
-
-**If docs are wrong**: STOP → Update docs → Update tests → Continue
-
-
-
-### Critical Implementation Rules
-
-**Initial Docs Are Hypotheses**: 
-- First API.md contains best guesses
-- Dependencies WILL be wrong
-- This is expected and healthy
-- Discovery through implementation is the goal
-
-**🛑 STOP Protocol**: When implementation reveals doc errors:
-1. STOP immediately
-2. Update API.md/ARCH.md
-3. Continue with correct docs
-
-**Test Immutability**: 
-- Test harnesses = frozen after creation
-- Test data = only change with human approval
-- Fix code, not tests (unless explicitly approved)
-
-**Dependency Updates**:
-- Add to API.md as discovered
-- Include transitive deps if needed for understanding
-- External deps must be explicit
-
-## Test Data Format
-```json
-{
-  "cases": [
-    {
-      "name": "descriptive name",
-      "input": [arg1, arg2],
-      "expected": {result},
-      "throws": "ErrorType"  // optional
+    // Temporary debug for test 004
+    if (path.includes('move-to-existing-file')) {
+      // console.log(`DEBUG: Wrote file ${path}`);
+      const exists = await fileExists(path);
+      // console.log(`DEBUG: File exists after write: ${exists}`);
     }
-  ]
+
+    return {
+      success: true,
+      data: {
+        path,
+        bytesWritten
+      }
+    };
+
+  } catch (error: any) {
+    return {
+      success: false,
+      error: formatNodeError(error, path, 'open')
+    };
+  }
+}
+
+/**
+ * Handle file_read action - reads file content
+ */
+async function handleFileRead(action: LoafAction): Promise<FileOpResult> {
+  const { path } = action.parameters;
+
+  try {
+    const content = await readFile(path, 'utf8');
+
+    return {
+      success: true,
+      data: {
+        path,
+        content
+      }
+    };
+
+  } catch (error: any) {
+    return {
+      success: false,
+      error: formatNodeError(error, path, 'open')
+    };
+  }
+}
+
+/**
+ * Handle file_read_numbered action - reads file content with line numbers
+ * Returns specified lines with line numbers prepended
+ * If lines parameter is missing, reads all lines
+ * If some lines are out of range, returns available content with error
+ */
+async function handleFileReadNumbered(action: LoafAction): Promise<FileOpResult> {
+  const { path, lines, delimiter = ": " } = action.parameters;
+
+  try {
+    const content = await readFile(path, 'utf8');
+
+    // Extract and number the requested lines
+    const { result, outOfRange } = extractNumberedLines(content, lines, delimiter);
+
+    // If out of range, return error with partial content
+    if (outOfRange) {
+      return {
+        success: false,
+        error: `file_read_numbered: Requested lines ${outOfRange.requested} but file only has ${outOfRange.actual} lines`,
+        data: {
+          path,
+          content: result
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        path,
+        content: result
+      }
+    };
+
+  } catch (error: any) {
+    // Check if it's our custom validation error
+    if (error.message && error.message.startsWith('Invalid line')) {
+      return {
+        success: false,
+        error: `file_read_numbered: ${error.message}`
+      };
+    }
+
+    return {
+      success: false,
+      error: formatNodeError(error, path, 'open')
+    };
+  }
+}
+
+/**
+ * Handle file_replace_lines action - replaces specified lines in a file
+ * Supports single line ("4") or range ("23-43") specifications
+ * Preserves line endings and handles edge cases
+ */
+async function handleFileReplaceLines(action: LoafAction): Promise<FileOpResult> {
+  const { path, lines, new_content } = action.parameters;
+
+  try {
+    // Read existing file content
+    const content = await readFile(path, 'utf8');
+
+    // Handle empty file edge case
+    if (content === '') {
+      return {
+        success: false,
+        error: `file_replace_lines: Line range ${lines} is out of bounds (file has 0 lines)`
+      };
+    }
+
+    // Split into lines, preserving empty lines
+    // Check if content ends with a newline
+    const endsWithNewline = content.match(/\r?\n$/);
+    const fileLines = content.split(/\r?\n|\r/);
+
+    // If the file ends with a newline, split gives us an extra empty element
+    // Remove it for line counting, but remember it existed
+    if (endsWithNewline && fileLines[fileLines.length - 1] === '') {
+      fileLines.pop();
+    }
+
+    const totalLines = fileLines.length;
+
+    // Parse line specification
+    let startLine: number;
+    let endLine: number;
+
+    if (!lines || lines === '') {
+      return {
+        success: false,
+        error: `file_replace_lines: Invalid line specification '${lines}'`
+      };
+    }
+
+    if (lines.includes('-')) {
+      // Range format: "23-43"
+      const parts = lines.split('-');
+      if (parts.length !== 2) {
+        return {
+          success: false,
+          error: `file_replace_lines: Invalid line specification '${lines}'`
+        };
+      }
+
+      startLine = parseInt(parts[0], 10);
+      endLine = parseInt(parts[1], 10);
+
+      if (isNaN(startLine) || isNaN(endLine)) {
+        return {
+          success: false,
+          error: `file_replace_lines: Invalid line specification '${lines}'`
+        };
+      }
+
+      if (startLine < 1 || endLine < 1) {
+        return {
+          success: false,
+          error: `file_replace_lines: Invalid line specification '${lines}'`
+        };
+      }
+
+      if (startLine > endLine) {
+        return {
+          success: false,
+          error: `file_replace_lines: Invalid line range '${lines}' (start must be <= end)`
+        };
+      }
+    } else {
+      // Single line format: "4"
+      startLine = parseInt(lines, 10);
+      if (isNaN(startLine) || startLine < 1) {
+        return {
+          success: false,
+          error: `file_replace_lines: Invalid line specification '${lines}'`
+        };
+      }
+      endLine = startLine;
+    }
+
+
+
+    // Check if lines are out of range
+    if (startLine > totalLines || endLine > totalLines) {
+      return {
+        success: false,
+        error: `file_replace_lines: Line range ${lines} is out of bounds (file has ${totalLines} lines)`
+      };
+    }
+
+    // Split new content into lines
+    // Empty content should produce one empty line, not zero lines
+    const newLines = new_content.split(/\r?\n|\r/);
+
+    // Reconstruct the file with replaced lines
+    const resultLines: string[] = [];
+
+    // Add lines before the replacement range
+    for (let i = 0; i < startLine - 1; i++) {
+      resultLines.push(fileLines[i]);
+    }
+
+    // Add the new content
+    resultLines.push(...newLines);
+
+    // Add lines after the replacement range
+    for (let i = endLine; i < totalLines; i++) {
+      resultLines.push(fileLines[i]);
+    }
+
+    // Join back with newlines
+    let result = resultLines.join('\n');
+
+    // If the original file ended with a newline, preserve it
+    if (endsWithNewline) {
+      result += '\n';
+    }
+
+    // Write the file back
+    await writeFile(path, result, 'utf8');
+
+    const linesReplaced = endLine - startLine + 1;
+
+    return {
+      success: true,
+      data: {
+        path,
+        lines_replaced: linesReplaced
+      }
+    };
+
+  } catch (error: any) {
+    return {
+      success: false,
+      error: formatNodeError(error, path, 'open')
+    };
+  }
+}
+
+/**
+ * Handle files_read action - reads multiple files and returns their contents
+ * Parses multi-line paths parameter, one absolute path per line
+ * Returns an array of file contents in the same order as the paths
+ */
+async function handleFilesRead(action: LoafAction): Promise<FileOpResult> {
+  const { paths } = action.parameters;
+
+  // Parse the multi-line paths string
+  const pathList = paths
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0);  // Remove empty lines
+
+  if (pathList.length === 0) {
+    return {
+      success: false,
+      error: 'files_read: No paths provided'
+    };
+  }
+
+  // Read all files, collecting content and errors
+  const results: Array<{ path: string; content?: string; error?: string }> = [];
+
+  for (const filePath of pathList) {
+    try {
+      const content = await readFile(filePath, 'utf8');
+      results.push({ path: filePath, content });
+    } catch (error: any) {
+      // Collect error for this file
+      const errorMsg = formatNodeError(error, filePath, 'open');
+      results.push({ path: filePath, error: errorMsg });
+    }
+  }
+
+  // Check if any files failed to read
+  const failedFiles = results.filter(r => r.error);
+  if (failedFiles.length > 0) {
+    // Return error listing all failed files
+    const errorDetails = failedFiles
+      .map(f => `  ${f.path}: ${f.error}`)
+      .join('\n');
+    return {
+      success: false,
+      error: `files_read: Failed to read ${failedFiles.length} file(s):\n${errorDetails}`
+    };
+  }
+
+  // All files read successfully - return contents as array
+  const contents = results.map(r => r.content!);
+
+  return {
+    success: true,
+    data: {
+      paths: pathList,
+      content: contents
+    }
+  };
+}
+
+/**
+ * Handle file_replace_text action - replaces EXACTLY ONE occurrence
+ * Fails if old_text appears 0 or 2+ times
+ */
+async function handleFileReplaceText(action: LoafAction): Promise<FileOpResult> {
+  const { path, old_text, new_text } = action.parameters;
+
+  // Validate old_text is not empty
+  if (!old_text || old_text.length === 0) {
+    return {
+      success: false,
+      error: 'file_replace_text: old_text cannot be empty'
+    };
+  }
+
+  try {
+    // Read existing file content
+    const content = await readFile(path, 'utf8');
+
+    // Count occurrences first
+    let count = 0;
+    let searchIndex = 0;
+    while (true) {
+      const index = content.indexOf(old_text, searchIndex);
+      if (index === -1) break;
+      count++;
+      searchIndex = index + old_text.length;
+    }
+
+    // Validate exactly one occurrence
+    if (count === 0) {
+      return {
+        success: false,
+        error: `file_replace_text: old_text not found in file`
+      };
+    }
+    if (count > 1) {
+      return {
+        success: false,
+        error: `file_replace_text: old_text appears ${count} times, must appear exactly once`
+      };
+    }
+
+    // Replace the single occurrence
+    const { result, replacements } = replaceText(content, old_text, new_text, 1);
+
+    // Write updated content back
+    await writeFile(path, result, 'utf8');
+
+    return {
+      success: true,
+      data: {
+        path,
+        replacements
+      }
+    };
+
+  } catch (error: any) {
+    // Special case for empty old_text validation error
+    if (error.message === 'old_text cannot be empty') {
+      return {
+        success: false,
+        error: 'file_replace_text: old_text cannot be empty'
+      };
+    }
+
+    return {
+      success: false,
+      error: formatNodeError(error, path, 'open')
+    };
+  }
+}
+
+/**
+ * Handle file_replace_all_text action - replaces all occurrences
+ * If count provided, validates exact match
+ */
+async function handleFileReplaceAllText(action: LoafAction): Promise<FileOpResult> {
+  const { path, old_text, new_text, count } = action.parameters;
+
+  // Validate old_text is not empty
+  if (!old_text || old_text.length === 0) {
+    return {
+      success: false,
+      error: 'file_replace_all_text: old_text cannot be empty'
+    };
+  }
+
+  try {
+    // Read existing file content
+    const content = await readFile(path, 'utf8');
+
+    // If count specified, validate it matches actual occurrences
+    if (count !== undefined) {
+      // Count actual occurrences
+      let actualCount = 0;
+      let searchIndex = 0;
+      while (true) {
+        const index = content.indexOf(old_text, searchIndex);
+        if (index === -1) break;
+        actualCount++;
+        searchIndex = index + old_text.length;
+      }
+
+      if (actualCount !== count) {
+        return {
+          success: false,
+          error: `file_replace_all_text: expected ${count} occurrences but found ${actualCount}`
+        };
+      }
+    }
+
+    // Replace all occurrences
+    const { result, replacements } = replaceText(content, old_text, new_text);
+
+    // Write updated content back
+    await writeFile(path, result, 'utf8');
+
+    return {
+      success: true,
+      data: {
+        path,
+        replacements
+      }
+    };
+
+  } catch (error: any) {
+    // Special case for empty old_text validation error
+    if (error.message === 'old_text cannot be empty') {
+      return {
+        success: false,
+        error: 'file_replace_all_text: old_text cannot be empty'
+      };
+    }
+
+    return {
+      success: false,
+      error: formatNodeError(error, path, 'open')
+    };
+  }
+}
+
+// Internal function stubs for each operation
+
+async function createFile(path: string, content: string): Promise<void> {
+  throw new Error('Not implemented');
+}
+
+
+
+async function replaceTextInFile(path: string, oldText: string, newText: string, count?: number): Promise<number> {
+  throw new Error('Not implemented');
+}
+
+async function deleteFile(path: string): Promise<void> {
+  throw new Error('Not implemented');
+}
+
+async function moveFile(oldPath: string, newPath: string): Promise<void> {
+  throw new Error('Not implemented');
+}
+
+async function readFileContent(path: string): Promise<string> {
+  throw new Error('Not implemented');
+}
+
+async function createDirectory(path: string): Promise<void> {
+  throw new Error('Not implemented');
+}
+
+async function deleteDirectory(path: string): Promise<void> {
+  throw new Error('Not implemented');
+}
+
+interface DirEntry {
+  name: string;
+  type: 'file' | 'directory';
+  size: number;
+  modified: Date;
+}
+
+async function listDirectory(path: string): Promise<DirEntry[]> {
+  throw new Error('Not implemented');
+}
+
+interface GrepResult {
+  file: string;
+  line_number: number;
+  line: string;
+}
+
+async function searchFiles(pattern: string, path: string, include?: string): Promise<GrepResult[]> {
+  throw new Error('Not implemented');
+}
+
+async function globFiles(pattern: string, basePath: string): Promise<string[]> {
+  throw new Error('Not implemented');
+}
+
+// Action handler mapping
+const actionHandlers: Record<string, (action: LoafAction) => Promise<FileOpResult>> = {
+  'file_write': handleFileWrite,
+  'file_replace_text': handleFileReplaceText,
+  'file_replace_all_text': handleFileReplaceAllText,
+  'file_delete': handleFileDelete,
+  'file_move': handleFileMove,
+  'file_read': handleFileRead,
+  'files_read': handleFilesRead,
+  'file_read_numbered': handleFileReadNumbered,
+  'file_replace_lines': handleFileReplaceLines,
+  'dir_create': async (action) => {
+    return { success: false, error: 'Not implemented' };
+  },
+  'dir_delete': async (action) => {
+    return { success: false, error: 'Not implemented' };
+  },
+  'ls': async (action) => {
+    return { success: false, error: 'Action not implemented: ls' };
+  },
+  'grep': async (action) => {
+    return { success: false, error: 'Not implemented' };
+  },
+  'glob': async (action) => {
+    return { success: false, error: 'Not implemented' };
+  }
+};
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/exec/src/index.ts ===
+// Re-export all public functions
+export { executeCommand } from './executeCommand';
+export { mapLanguageToCommand } from './mapLanguageToCommand';
+export { buildSpawnOptions } from './buildSpawnOptions';
+export { formatExecResult } from './formatExecResult';
+
+// Re-export types
+export type { ExecResult } from './types';
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/exec/src/index.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/exec/src/executeCommand.ts ===
+import { spawn } from 'child_process';
+import type { ExecResult } from './types';
+import { ExecError } from './types';
+import { mapLanguageToCommand } from './mapLanguageToCommand';
+import { buildSpawnOptions } from './buildSpawnOptions';
+import { formatExecResult } from './formatExecResult';
+
+/**
+ * Executes code from parsed NESL action in specified language
+ * @param action - LoafAction with exec action and parameters
+ * @returns ExecResult with success status, output, and exit code
+ * Never throws - all errors captured in result
+ */
+export async function executeCommand(action: any): Promise<ExecResult> {
+  try {
+    // Validate action structure
+    if (!action?.parameters?.lang || !action?.parameters?.code === undefined) {
+      return formatExecResult(null, '', '',
+        new Error('Invalid action: missing lang or code parameter'));
+    }
+
+    const { lang, code, cwd, timeout } = action.parameters;
+
+    // Map language to command (may throw)
+    const { command, args } = mapLanguageToCommand(lang, code);
+
+    // Build spawn options with validated cwd (may throw)
+    const options = await buildSpawnOptions(cwd);
+
+    // Execute command and capture results
+    return await runProcess(command, args, options, timeout);
+
+  } catch (error) {
+    // Convert exceptions to ExecResult format
+    if (error instanceof ExecError) {
+      return formatExecResult(null, '', '', error);
+    }
+    return formatExecResult(null, '', '',
+      error instanceof Error ? error : new Error(String(error)));
+  }
+}
+
+/**
+ * Spawns child process and captures output with timeout handling
+ * @param command - Interpreter command to run
+ * @param args - Arguments for the command
+ * @param options - Spawn options including cwd and timeout
+ * @returns ExecResult with captured output and exit code
+ */
+async function runProcess(
+  command: string,
+  args: string[],
+  options: any,
+  timeout?: number
+): Promise<ExecResult> {
+  return new Promise((resolve) => {
+    let stdout = '';
+    let stderr = '';
+    let timedOut = false;
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    const child = spawn(command, args, options);
+
+    // Set up timeout (default 30s)
+    const TIMEOUT_MS = timeout || 30000;
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      // Kill entire process group if detached
+      const pid = child.pid;
+      if (pid && options.detached) {
+        try {
+          process.kill(-pid, 'SIGTERM'); // Negative PID kills the group
+        } catch (e) {
+          // Fallback to regular kill if group kill fails
+          child.kill('SIGTERM');
+        }
+      } else {
+        child.kill('SIGTERM');
+      }
+      // Grace period before SIGKILL
+      setTimeout(() => {
+        if (!child.killed) {
+          if (pid && options.detached) {
+            try {
+              process.kill(-pid, 'SIGKILL');
+            } catch (e) {
+              child.kill('SIGKILL');
+            }
+          } else {
+            child.kill('SIGKILL');
+          }
+        }
+      }, 100); // 100ms grace - balance between speed and cleanup
+    }, TIMEOUT_MS);
+
+    // Capture output streams
+    child.stdout?.on('data', (data) => {
+      stdout += data.toString();
+      // TODO: Implement size limit truncation
+    });
+
+    child.stderr?.on('data', (data) => {
+      stderr += data.toString();
+      // TODO: Implement size limit truncation
+    });
+
+    // Handle process completion
+    child.on('close', (code, signal) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+
+      if (timedOut) {
+        resolve(formatExecResult(null, stdout, stderr,
+          new Error(`exec: Process timeout after ${TIMEOUT_MS / 1000}s (TIMEOUT)`)));
+      } else if (code !== null) {
+        resolve(formatExecResult(code, stdout, stderr));
+      } else if (signal) {
+        resolve(formatExecResult(null, stdout, stderr,
+          new Error(`Process killed by signal ${signal}`)));
+      }
+    });
+
+    // Handle spawn errors (command not found, etc)
+    child.on('error', (error) => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      // Check if it's ENOENT (command not found)
+      if ((error as any).code === 'ENOENT') {
+        resolve(formatExecResult(null, stdout, stderr,
+          new Error(`exec: ${command} not found in PATH (ENOENT)`)));
+      } else {
+        resolve(formatExecResult(null, stdout, stderr, error));
+      }
+    });
+
+
+  });
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/exec/src/executeCommand.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md ===
+# Loaf Architecture
+
+
+IMPORTANT TOOL TESTING NOTES:
+
+- for test specific loaf tools, each tool must get its own test case file, for easy visibility into which tools have been implemented and tested yet.
+- aka `proj/comp/fs-ops/test-data/integration/file_delete.cases.md`
+
+## Core Design Decisions
+
+### Transaction Model
+- **No automatic rollback** - All operations commit, including failures
+- **Failures are data** - LLM needs failure feedback for next steps
+- **Forward-only progress** - Cheaper than regenerating responses
+- **Manual rollback only** - Human-initiated via git commands
+- **Boundary**: One git commit per `execute()` call
+- **API**: Explicit transaction management (details TBD)
+
+### NESL Processing Pipeline
+1. NESL parser (external npm) → AST
+2. AST → Action objects (nesl-ast-converter)
+3. Actions → Execution → Results
+
+### NESL AST Structure
+```typescript
+interface NeslParseResult {
+  blocks: NeslBlock[]
+  errors: NeslError[]
+}
+
+interface NeslBlock {
+  id: string           // 3-char SHA-256
+  properties: {
+    action: string     // Maps to tool name (e.g., "file_write")
+    [key: string]: any // Tool-specific parameters
+  }
+  startLine: number
+  endLine: number
+}
+
+interface NeslError {
+  code: string         // e.g., "DUPLICATE_KEY"
+  line: number
+  column: number
+  length: number
+  blockId: string
+  content: string
+  context: string
+  message: string
 }
 ```
 
-## Quick Checks
+### Error Propagation Strategy
+- **Parser errors**: Skip blocks with parser errors, execute valid blocks only
+- **Validation errors**: Skip invalid actions, execute valid ones
+- **Execution errors**: Continue with remaining actions
+- **Result**: Complete execution log with successes and failures
 
-Before implementing:
-- [ ] API.md declares all exports?
-- [ ] Dependencies section updated?
-- [ ] Test data files created?
+### Action Mapping
+- NESL `action` property maps directly to tool names from unified-design.yaml
+- Use canonical names: `file_write`, `exec`, etc.
 
-During implementation:
-- [ ] Tests fail first (red phase)?
-- [ ] Docs match reality? (if not → STOP)
-- [ ] All imports declared in API.md?
+### Context Management
+- **V1**: Simple `Set<string>` of file paths
+- **Storage**: In-memory only, no persistence across sessions
+- **V2 Future**: Sub-file references (lines, functions, sections)
 
-## Common Patterns
+### Hooks Integration
+- **Loading**: Lazy-load HooksManager on first execute() if hooks enabled
+- **Config Source**: Options > loaf.yml > no hooks
+- **Before Hook Failure**: Fatal - prevents NESL execution
+- **After Hook Failure**: Non-fatal - recorded but doesn't affect overall success
+- **Context Passing**: Minimal context to after hooks (success, counts)
+- **Variable Interpolation**: Handled by hooks component, not orch
 
-**Extract pure functions during pseudocode**:
-```javascript
-// Pseudocode reveals:
-// extractedFn: validateInput(x) -> bool
-// extractedFn: processData(data) -> result
-```
-
-**Types-only components**: No test/ or src/, only doc/
-
-**Path conventions**: All relative to `<repo>/`
-- Component: `proj/comp/{name}`
-- Nested: `proj/comp/{parent}/comp/{child}`
-
-
-# update 
-
-- need to update this so that we save our pseudocde in some sort of documetnation, maybe temp documentation.  so if we implement the fucntiosn to unit test, we dont get confused later about how theyre supposed to be used.
-
-- ideally, each extracted function unit-testable function would be in its own file.  for parallelism with the unit test files
-
-- TESTING PATHS
-
-dont save files directly to `/tmp/`.  save them to a dir in the tmp dir taht is named with the name of the test preceedd by 't_', eg `/tmp/t_move-nonexistent-file`
-
-like: 
-
-
-### 003-move-nonexistent-file
-
-```sh nesl
-#!nesl [@three-char-SHA-256: mnf]
-action = "file_move"
-old_path = "/tmp/t_move-nonexistent-file/ghost.txt"
-new_path = "/tmp/t_move-nonexistent-file/nowhere.txt"
-#!end_mnf
-```
-
-```json
-{
-  "success": false,
-  "error": "file_move: Source file not found '/tmp/t_move-nonexistent-file/ghost.txt' (ENOENT)"
+### Execution Model
+- **Synchronous**: All operations block until complete
+- **CWD Management**: Session-based working directory
+  - Default: Repository root
+  - Each exec can override with `cwd` parameter
+  - CWD persists within session, not across transactions
+- **Results Format**: Flat array with sequence numbers
+```typescript
+interface ActionResult {
+  seq: number          // Execution order
+  blockId: string      // NESL block ID
+  action: string       // Action type
+  params: any          // Input parameters
+  success: boolean
+  error?: string       // Error message if failed
+  data?: any           // Action-specific output (stdout, content, etc.)
 }
 ```
 
+### Security Model (V1)
+- **None**: Full filesystem access
+- **No validation**: Any path allowed
+- **No sandboxing**: Direct execution
+- **V2 Future**: Path allowlisting per unified-design.yaml. FOR THIS REASON all fs stuff should immediately be implemented using our fs wrapper functions so this whitelisting/blacklisting is easy to implment in the future.
 
+## Component Structure
+```
+loaf/
+├── proj/
+│   ├── comp/
+│   │   ├── nesl-ast-converter/  # AST → Actions
+│   │   ├── fs-ops/              # File/directory operations
+│   │   ├── exec/                # Command execution
+│   │   ├── git-tx/              # Git transaction management
+│   │   └── context/             # Working set management
+│   └── doc/
+│       ├── API.md               # Main orchestrator API
+│       ├── ARCH.md              # This document
+│       └── ABSTRACT.md          # Project overview
+```
 
-consider using EARS somehow for specs/reqs: EARS: The Easy Approach to Requirements Syntax
+## Implementation Priorities
+1. `nesl-ast-converter` - Cannot test without this
+2. `fs-ops` - Core functionality
+3. `exec` - Command execution
+4. `git-tx` - Transaction wrapper
+5. `context` - Working set (may be simple enough to inline)
 
-for dependency blocks in docs api, do not include external dependencies!!
-=== END FILE: /Users/stuart/repos/loaf/xd5_ref.md ===
+## Open Questions
+
+### Critical
+1. **NESL parser package**: `nesl-js` from `github:nesl-lang/nesl-js`
+   - Import: `const { parseNESL } = require('nesl-js')`
+2. **Transaction API**: Single `execute()` method processes NESL block array
+
+### Design
+1. **Parser error handling**: Execute blocks with parser errors or skip?
+2. **Git conflict handling**: How to handle conflicts during manual rollback?
+3. **Concurrent access**: Multiple loaf instances on same repo?
+4. **Partial failure behavior**: Continue executing after first failure or abort?
+
+### Future
+1. **Context references**: Syntax for line ranges and functions
+2. **Execution isolation**: Container/VM strategy for V2
+3. **Streaming results**: Return results as actions complete or batch at end?
+
+## Design Rationale
+
+### Why No Automatic Rollback
+Traditional transaction systems rollback on failure to maintain consistency. Loaf explicitly rejects this because:
+1. **LLM responses are expensive** - Regenerating costs time and money
+2. **Partial success is informative** - LLM learns from failures
+3. **Git preserves history** - Can always manually revert
+4. **Forward progress over perfection** - Incremental improvement model
+
+### Why Synchronous Execution
+1. **Deterministic results** - LLM needs to know exact outcomes
+2. **Sequential dependencies** - Later actions may depend on earlier ones
+3. **Simpler implementation** - No async state management
+4. **Git compatibility** - Git operations are inherently synchronous
+
+### Why In-Memory Context
+1. **Session isolation** - Each LLM conversation is independent
+2. **No persistence complexity** - No file format versioning
+3. **Git is the source of truth** - Files on disk matter, not context
+4. **Quick reset** - New session = clean slate
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md ===
 

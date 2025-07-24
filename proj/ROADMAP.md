@@ -5,13 +5,13 @@ loaf-cli
 
 FIVE things i want to finish before release 
 
-- hooks for custom git etc before and after executions
-- search/replace by range file_replace_text_range
+
 - fs permissions - read/write allowlist/denylist
 - tools allowlist (to block cmd line stuff for file security)
-- LLM instructions generator (based on tools allowlist)
-- loaf init -- create the loaf.yaml file with file permissions based on cwd
 
+- LLM instructions generator (based on tools allowlist)
+
+X hooks for custom git etc before and after executions
 
 
 - npx run usage
@@ -19,11 +19,20 @@ FIVE things i want to finish before release
 
 LATER:
 
+
+- search/replace by range file_replace_text_range
 - copy paste mode 
     - include clipboard watcher to automatically execute outputs that have been copied and then if user copies "nesl" 
 - git squash stuff
     
+----
 
+
+? loaf init -- create the loaf.yaml file with file permissions based on cwd
+    i think this has been done already by claude? 
+
+
+-----
 
 TODO:
 
