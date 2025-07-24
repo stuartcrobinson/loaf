@@ -65,7 +65,7 @@ config:
 ```sh nesl
 #!nesl [@three-char-SHA-256: hwf]
 action = "file_write"
-path = "/invalid\0path/test.txt"
+path = "/dev/null/cannot/create/subdirs/test.txt"
 content = "This will fail"
 #!end_hwf
 ```

@@ -7,6 +7,7 @@ import { load as loadYaml } from 'js-yaml';
 import { readFile, access } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { createStarterConfig } from './createStarterConfig.js';
 
 export interface ExecutionResult {
   success: boolean;
@@ -19,6 +20,7 @@ export interface ExecutionResult {
     before?: string[];
     after?: string[];
   };
+  configCreated?: boolean;
   debug?: {
     parseDebug?: any;
   };
@@ -39,6 +41,7 @@ export interface LoafOptions {
   gitCommit?: boolean;
   hooks?: HooksConfig;
   enableHooks?: boolean;
+  createConfigIfMissing?: boolean;
 }
 
 export class Loaf {
@@ -51,7 +54,8 @@ export class Loaf {
       repoPath: options.repoPath || process.cwd(),
       gitCommit: options.gitCommit ?? true,
       hooks: options.hooks,
-      enableHooks: options.enableHooks ?? true
+      enableHooks: options.enableHooks ?? true,
+      createConfigIfMissing: options.createConfigIfMissing ?? false
     };
   }
 
@@ -61,12 +65,14 @@ export class Loaf {
    */
   async execute(llmOutput: string): Promise<ExecutionResult> {
     const hookErrors: ExecutionResult['hookErrors'] = {};
+    let configCreated = false;
 
     try {
       // Initialize hooks if enabled and not already initialized
       if (this.options.enableHooks && !this.hooksManager) {
         try {
-          await this.initializeHooks();
+          const initResult = await this.initializeHooks();
+          configCreated = initResult.configCreated || false;
         } catch (error) {
           return {
             success: false,
@@ -192,6 +198,7 @@ export class Loaf {
         results,
         parseErrors: parseResult.errors,
         ...(Object.keys(hookErrors).length > 0 && { hookErrors }),
+        ...(configCreated && { configCreated }),
         debug: {
           parseDebug: parseResult.debug
         }
@@ -214,7 +221,9 @@ export class Loaf {
    * Initialize hooks manager with configuration
    * Loads from options or loaf.yml file
    */
-  private async initializeHooks(): Promise<void> {
+  private async initializeHooks(): Promise<{ configCreated: boolean }> {
+    let configCreated = false;
+    
     if (this.options.hooks) {
       // Use provided configuration
       // Wrap the hooks in the expected HooksConfig structure
@@ -231,11 +240,22 @@ export class Loaf {
         this.hooksManager = new HooksManager(undefined, this.options.repoPath);
         const config = await this.hooksManager.loadConfig(loafYmlPath);
         this.hooksManager = new HooksManager(config, this.options.repoPath);
-      } catch (error) {
-        // No loaf.yml found, hooks will be disabled
-        // This is not an error - hooks are optional
+      } catch (error: any) {
+        if (error.code === 'ENOENT' && this.options.createConfigIfMissing) {
+          // Create starter config
+          configCreated = await createStarterConfig(this.options.repoPath!);
+          if (configCreated) {
+            // Load the newly created config
+            this.hooksManager = new HooksManager(undefined, this.options.repoPath);
+            const config = await this.hooksManager.loadConfig(loafYmlPath);
+            this.hooksManager = new HooksManager(config, this.options.repoPath);
+          }
+        }
+        // If not ENOENT or createConfigIfMissing is false, hooks remain disabled
       }
     }
+    
+    return { configCreated };
   }
 
   /**
