@@ -3,7 +3,7 @@ version: 1
 
 hooks:
   before:
-    - run: git stash push --keep-index --include-untracked
+    - run: git stash --include-untracked
       
   after:
     - run: git add -A

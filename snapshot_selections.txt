@@ -1,460 +1,3 @@
-=== START FILE: /Users/stuart/repos/loaf/unified-design.yaml ===
-# AI Coder Tools Schema - Unified Design
-
-# Loaf executes filesystem and runtime commands embedded in LLM output using NESL syntax. It provides deterministic filesystem access and shell command execution for LLM coding agents.
-
-# NESL syntax example:
-
-NESL_synatx_example: |
-  ```sh nesl
-  #!nesl [@three-char-SHA-256: k7m]
-  action = "file_write"
-  path = "/tmp/\"hello\".txt"
-  content = <<'EOT_k7m'
-  Hello world!
-  how are you?
-  EOT_k7m
-  #!end_k7m
-  ```
-
-
-tools:
-  # File Operations
-  file_write:
-    type: write
-    executor: fs-ops
-    description: Create new file while creating any necessary parent dirs. overwrites if already exists
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      content: {type: string, required: true}
-    returns: {success: boolean, error?: string}
-    
-  file_replace_text:
-    type: write
-    executor: fs-ops
-    description: Replace first and only instance of substring in file. must exist only once
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      old_text: {type: string, required: true}
-      new_text: {type: string, required: true}
-    returns: {success: boolean, replacements_made?: integer, error?: string}
-    
-  file_replace_text_range:
-    type: write
-    executor: fs-ops
-    description: Replace first and only instance of text range in file. must exist only once
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      old_text_beginning: {type: string, required: true}
-      old_text_end: {type: string, required: true}
-      new_text: {type: string, required: true}
-    returns: {success: boolean, replacements_made?: integer, error?: string}
-    
-  file_replace_all_text:
-    type: write
-    executor: fs-ops
-    description: Replace each matching substring in file.  Number of matches (count) should usually be known and declared ahead of time.
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      old_text: {type: string, required: true}
-      new_text: {type: string, required: true}
-      count: {type: integer, required: false}
-    returns: {success: boolean, replacements_made?: integer, error?: string}
-    
-
-  #tentative!  under consideration
-  files_replace_all_text:
-    type: write
-    executor: fs-ops
-    description: Replace all occurrences of substring in multiple files. Processes each file independently
-    accessibility: [llm]
-    parameters:
-      paths: {type: string, format: multiline_absolute_paths}
-      old_text: {type: string, required: true}
-      new_text: {type: string, required: true}
-    returns: {
-      success: boolean,
-      results: {
-        type: array,
-        items: {
-          path: string,
-          replacements_made: integer,
-          error?: string
-        }
-      },
-      error?: string  # for complete failure
-    }
-
-
-
-  #tentative!  under consideration.  dont implement yet
-  # actually.... for "in parents" stuff lets just use our exisitng tools, but allow "parent" stuff to be added to the path, like ina  syntax we created earlier but forgot about
-  # like:
-  # path/to/file.md@@## Section 2@@### part 3
-  # path/to/code.rs@@MyModuleOrClass@@myFunction
-  files_replace_text_in_parents:
-    type: write
-    executor: fs-ops
-    description: Replace all occurrences of substring in a given node of a parsed file that supports grouping, like markdown, code (ast), etc 
-    accessibility: [llm]
-    parameters:
-      path: {type: string, required: true}
-      parents: {type: string, required: true, format: multiline_absolute_paths} # need to better define how parents are defined
-      old_text: {type: string, required: true}
-      new_text: {type: string, required: true}
-
-
-  file_append:
-    type: write
-    executor: fs-ops
-    description: Append to file
-    accessibility: [llm]
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      content: {type: string, required: true}
-    returns: {success: boolean, error?: string}
-    
-  file_delete:
-    type: write
-    executor: fs-ops
-    description: Delete file
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-    
-  file_move:
-    type: write
-    executor: fs-ops
-    description: Move/rename file
-    accessibility: [llm]
-    output_display: never
-    primary_param: old_path
-    parameters:
-      old_path: {type: string, required: true, format: absolute_path}
-      new_path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-    
-
-
-  file_read:
-    type: read
-    executor: fs-ops
-    description: Read single file content
-    accessibility: [llm]
-    output_display: always
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, content?: string, error?: string}
-
-  file_read_numbered:
-    type: read
-    executor: fs-ops
-    description: Read file content with line numbers for specified line range
-    accessibility: [llm]
-    output_display: always
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      lines: {type: string, required: false, description: "Line range: single '4' or range '23-43'. If omitted, reads all lines."}
-      delimiter: {type: string, required: false, default: ": ", description: "Delimiter between line number and content"}
-    returns: {success: boolean, content?: string, error?: string}
-
-  file_replace_lines:
-    type: write
-    executor: fs-ops
-    description: Replace specified line range in file with new content
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-      lines: {type: string, required: true, description: "Line range: single '4' or range '23-43'"}
-      new_content: {type: string, required: true, description: "Content to replace the line range with"}
-    returns: {success: boolean, lines_replaced?: integer, error?: string}
-
-
-  files_read:
-    type: read
-    executor: fs-ops
-    description: Read and concatenate contents of multiple files into a single string, with clear file delimiters
-    accessibility: [llm]
-    output_display: always
-    primary_param: paths
-    parameters:
-      paths: {
-        type: string, 
-        required: true, 
-        format: "multiline_absolute_paths",
-        description: "One absolute file path per line. Empty lines are ignored."
-      }
-    returns: {
-      success: boolean, 
-      data?: {                          # i guess this is formatted wrong... 
-        paths: array, content: array
-        },
-      error?: string
-    }  
-    example: |
-      paths: |
-        /home/user/projects/src/main.py
-        /home/user/projects/src/utils.py
-        /home/user/projects/README.md
-    
-  # Directory Operations
-  dir_create:
-    type: write
-    executor: fs-ops
-    description: Create directory
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-    
-  dir_delete:
-    type: write
-    executor: fs-ops
-    description: Delete directory
-    accessibility: [llm]
-    output_display: never
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-    
-  # Read Operations
-  ls:
-    type: read
-    executor: fs-ops
-    description: List directory contents
-    accessibility: [llm]
-    output_display: always
-    primary_param: path
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: 
-      success: boolean
-      data:
-        type: array
-        items:
-          name: string
-          type: string  # file|directory
-          size: integer
-          modified: timestamp
-      error: string
-    
-  grep:
-    type: read
-    description: Search pattern in files
-    accessibility: [llm]
-    output_display: always
-    primary_param: pattern
-    parameters:
-      pattern: {type: string, required: true}
-      path: {type: string, required: true, format: absolute_path}
-      include: {type: string, required: false}
-    returns: 
-      success: boolean
-      data:
-        type: array
-        items:
-          file: string
-          line_number: integer
-          line: string
-      error: string
-    
-  glob:
-    type: read
-    description: Find files matching pattern
-    accessibility: [llm]
-    output_display: always
-    primary_param: pattern
-    parameters:
-      pattern: {type: string, required: true}
-      base_path: {type: string, required: true, format: absolute_path}
-    returns: 
-      success: boolean
-      data:
-        type: array
-        items: string
-      error: string
-    
-  # Execution
-  exec:
-    type: dynamic
-    description: Execute code
-    accessibility: [llm]
-    output_display: conditional  # Check return_output parameter
-    primary_param: lang
-    parameters:
-      code: {type: string, required: true}
-      lang: {type: enum, values: [python, javascript, bash], required: true}
-      version: {type: string, required: false}
-      cwd: {type: string, required: false, format: absolute_path}
-      return_output: {type: boolean, required: false, default: true}
-    returns: {success: boolean, stdout?: string, stderr?: string, exit_code?: integer, error?: string}
-
-  # Context Operations -- for much later.  dont do this until loaf has been integrated into bigfoot, the ai llm coder
-  context_add:
-    type: meta
-    description: Add item to working context (persistent)
-    accessibility: [llm, user]
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-      
-  context_remove:
-    type: meta
-    description: Remove item from working context
-    accessibility: [llm, user]
-    parameters:
-      path: {type: string, required: true, format: absolute_path}
-    returns: {success: boolean, error?: string}
-      
-  context_list:
-    type: meta
-    description: List items in working context
-    accessibility: [llm, user]
-    parameters: {}
-    returns: 
-      success: boolean
-      data:
-        type: array
-        items:
-          path: string
-          size: integer
-      error: string
-    
-  context_prune:
-    type: meta
-    description: Remove unused items from working context
-    accessibility: [llm, user]
-    parameters: {}
-    returns: {success: boolean, removed?: array of strings, error?: string}
-    
-  context_clear:
-    type: meta
-    description: Clear all working context items
-    accessibility: [llm, user]
-    parameters: {}
-    returns: {success: boolean, error?: string}
-    
-  # Git Operations
-  git_squash:
-    type: git
-    description: Squash commits
-    slash_command: true
-    parameters:
-      mode: {type: enum, values: [auto_ai, ai_messages, hours, days, contiguous_only=true, msg_contains], required: true}
-      message: {type: string, required: false}
-      hours: {type: integer, required: false, when: "mode=hours"}
-      days: {type: integer, required: false, when: "mode=days"}
-      msg_target: {type: string, required: false, when: "mode=msg_contains"}
-    returns: {success: boolean, error?: string}
-      
-  undo:
-    type: git
-    description: Undo last AI changes
-    accessibility: [user]
-    constraints: ["No changes since last AI operation"]
-    parameters: {}
-    returns: {success: boolean, error?: string}
-    
-  git_step_back:
-    type: git
-    description: Move to previous commit
-    accessibility: [user]
-    behavior: Stashes untracked changes
-    parameters: {}
-    returns: {success: boolean, stashed_files?: array of strings, error?: string}
-    
-  git_step_forward:
-    type: git
-    description: Move to next commit
-    accessibility: [user]
-    behavior: Attempts to pop stashed changes
-    parameters: {}
-    returns: {success: boolean, conflicts?: array of strings, error?: string}
-
-# Transaction Management
-transaction_model:
-  strategy: operation_group
-  conflict_detection:
-    methods:
-      - mtime comparison (fast but unreliable)
-      - checksum comparison (slower but accurate)
-      - git status check (catches git-tracked changes)
-    timing:
-      - Check immediately before operation group
-      - Check after each write operation
-      - Final check before commit
-  implementation:
-    - Begin: git commit current state
-    - Execute: track all operations
-    - Validate: check for external modifications
-    - Success: git commit with summary
-    - Failure: git reset --hard to start
-  atomicity: none  # Git operations are NOT atomic at filesystem level
-  
-# Security Model
-security:
-  path_validation:
-    type: allowlist
-    allowed_roots:
-      - /home/user/projects
-      - /tmp/ai-coder
-    blacklist_patterns:
-      - .*\.ssh.*
-      - .*\.git/config
-      - /etc/.*
-      - /sys/.*
-      - /proc/.*
-  canonicalization: required  # Resolve ../ and symlinks before checking
-  
-# System Configuration
-config:
-  encoding: utf-8
-  line_endings: preserve  # Don't normalize
-  max_file_size: 10485760  # 10MB
-  git_auto_push: false  # Require explicit push
-  commit_message_format: "AI: {operation_summary}"
-
-TODO: |   
-  Transaction Safety: The git-based transaction model has race conditions:
-
-    Gap between "git commit" and first operation
-    Non-atomic filesystem ops vs git state
-
-
-# more TODO 
-
-
-  #tentative!  under consideration.  dont implement yet
-  # actually.... for "in parents" stuff lets just use our exisitng tools, but allow "parent" stuff to be added to the path, like ina  syntax we created earlier but forgot about
-  # like:
-  # path/to/file.md@@## Section 2@@### part 3
-  # path/to/code.rs@@MyModuleOrClass@@myFunction
-
-  # and add a wayt o get file numbers per read.  like an attribute to add to file_read to get the text with line numbers. and then a file_lines_replace that takes in a line range and replacement_text params. or maybe even each as an array.  maybe we should just change nesl-js so its not an error to have repeated values.  cos right now its like impossible to make a lot of small changes to a big code file.  but if we new the line number per each... that would make it easy for LLM... 
-=== END FILE: /Users/stuart/repos/loaf/unified-design.yaml ===
-
 === START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
 import type { LoafAction, ParseResult, ParseError } from '../../nesl-action-parser/src/index.js';
 import { parseNeslResponse } from '../../nesl-action-parser/src/index.js';
@@ -857,6 +400,55 @@ export class Loaf {
   }
 }
 === END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/createStarterConfig.ts ===
+import { writeFile } from 'fs/promises';
+import { join } from 'path';
+
+const STARTER_LOAF_YML = `# Loaf configuration
+version: 1
+
+hooks:
+  before: []
+  after: []
+  
+  # Example hooks (uncomment to use):
+  # before:
+  #   - run: git stash --include-untracked
+  #     continueOnError: false
+  
+  # after:
+  #   - run: git add -A
+  #   - run: git commit -m "\${COMMIT_MSG}"
+  #     continueOnError: false
+  #   - run: git push
+  #     continueOnError: true
+  #     timeout: 10000  # 10s for slow networks
+
+# Variables available in commands
+vars:
+  COMMIT_MSG: "AI-assisted changes"
+  # Add more variables as needed
+`;
+
+/**
+ * Creates a starter loaf.yml file if it doesn't exist
+ * @returns true if file was created, false if already exists
+ */
+export async function createStarterConfig(repoPath: string): Promise<boolean> {
+  const configPath = join(repoPath, 'loaf.yml');
+  
+  try {
+    await writeFile(configPath, STARTER_LOAF_YML, { flag: 'wx' });
+    return true;
+  } catch (error: any) {
+    if (error.code === 'EEXIST') {
+      return false;
+    }
+    throw error;
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/createStarterConfig.ts ===
 
 === START FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts ===
 /**
@@ -1557,310 +1149,1366 @@ export { formatExecResult } from './formatExecResult';
 export type { ExecResult } from './types';
 === END FILE: /Users/stuart/repos/loaf/proj/comp/exec/src/index.ts ===
 
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/exec/src/executeCommand.ts ===
-import { spawn } from 'child_process';
-import type { ExecResult } from './types';
-import { ExecError } from './types';
-import { mapLanguageToCommand } from './mapLanguageToCommand';
-import { buildSpawnOptions } from './buildSpawnOptions';
-import { formatExecResult } from './formatExecResult';
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
+import { promisify } from 'util';
+import { exec } from 'child_process';
+import { readFile } from 'fs/promises';
+import { interpolateCommand } from './interpolateCommand.js';
+import { validateCommand } from './validateCommand.js';
+import { formatHookResult } from './formatHookResult.js';
+import { parseYamlConfig } from './parseYamlConfig.js';
+import { validateConfig } from './validateConfig.js';
+import type { CommandResult } from './types.js';
 
-/**
- * Executes code from parsed NESL action in specified language
- * @param action - LoafAction with exec action and parameters
- * @returns ExecResult with success status, output, and exit code
- * Never throws - all errors captured in result
- */
-export async function executeCommand(action: any): Promise<ExecResult> {
-  try {
-    // Validate action structure
-    if (!action?.parameters?.lang || !action?.parameters?.code === undefined) {
-      return formatExecResult(null, '', '',
-        new Error('Invalid action: missing lang or code parameter'));
-    }
-
-    const { lang, code, cwd, timeout } = action.parameters;
-
-    // Map language to command (may throw)
-    const { command, args } = mapLanguageToCommand(lang, code);
-
-    // Build spawn options with validated cwd (may throw)
-    const options = await buildSpawnOptions(cwd);
-
-    // Execute command and capture results
-    return await runProcess(command, args, options, timeout);
-
-  } catch (error) {
-    // Convert exceptions to ExecResult format
-    if (error instanceof ExecError) {
-      return formatExecResult(null, '', '', error);
-    }
-    return formatExecResult(null, '', '',
-      error instanceof Error ? error : new Error(String(error)));
-  }
+// Public types
+export interface HooksConfig {
+  version?: number;
+  hooks?: {
+    before?: Command[];
+    after?: Command[];
+  };
+  vars?: Record<string, string>;
 }
 
-/**
- * Spawns child process and captures output with timeout handling
- * @param command - Interpreter command to run
- * @param args - Arguments for the command
- * @param options - Spawn options including cwd and timeout
- * @returns ExecResult with captured output and exit code
- */
-async function runProcess(
-  command: string,
-  args: string[],
-  options: any,
-  timeout?: number
-): Promise<ExecResult> {
-  return new Promise((resolve) => {
-    let stdout = '';
-    let stderr = '';
-    let timedOut = false;
-    let timeoutId: NodeJS.Timeout | null = null;
+export interface Command {
+  run: string;
+  continueOnError?: boolean;
+  timeout?: number;
+  cwd?: string;
+}
 
-    const child = spawn(command, args, options);
+export interface HookContext {
+  [key: string]: string | number | boolean;
+}
 
-    // Set up timeout (default 30s)
-    const TIMEOUT_MS = timeout || 30000;
-    timeoutId = setTimeout(() => {
-      timedOut = true;
-      // Kill entire process group if detached
-      const pid = child.pid;
-      if (pid && options.detached) {
-        try {
-          process.kill(-pid, 'SIGTERM'); // Negative PID kills the group
-        } catch (e) {
-          // Fallback to regular kill if group kill fails
-          child.kill('SIGTERM');
-        }
-      } else {
-        child.kill('SIGTERM');
+export interface HookResult {
+  success: boolean;
+  executed: number;
+  errors?: Array<{
+    command: string;
+    error: string;
+  }>;
+}
+
+// Promisified exec
+const execAsync = promisify(exec);
+
+// Main class
+export class HooksManager {
+  private config: HooksConfig;
+  private repoPath: string;
+
+  constructor(config?: HooksConfig, repoPath?: string) {
+    this.config = config || { hooks: {}, vars: {} };
+    this.repoPath = repoPath || process.cwd();
+  }
+
+  async runBefore(context?: HookContext): Promise<HookResult> {
+    const commands = this.config.hooks?.before || [];
+    return this.runCommands(commands, context);
+  }
+
+  async runAfter(context?: HookContext): Promise<HookResult> {
+    const commands = this.config.hooks?.after || [];
+    return this.runCommands(commands, context);
+  }
+
+  async loadAndSetConfig(path: string): Promise<HooksConfig> {
+    try {
+      const content = await readFile(path, 'utf8');
+      const config = parseYamlConfig(content);
+
+      const validation = validateConfig(config);
+      if (!validation.valid) {
+        throw new Error(`Invalid config: ${validation.error}`);
       }
-      // Grace period before SIGKILL
-      setTimeout(() => {
-        if (!child.killed) {
-          if (pid && options.detached) {
-            try {
-              process.kill(-pid, 'SIGKILL');
-            } catch (e) {
-              child.kill('SIGKILL');
-            }
-          } else {
-            child.kill('SIGKILL');
+
+      this.config = config;
+      return config;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`Config file not found: ${path}`);
+      }
+      throw error;
+    }
+  }
+
+  private async runCommands(commands: Command[], context?: HookContext): Promise<HookResult> {
+    const results: CommandResult[] = [];
+
+    for (const cmd of commands) {
+      try {
+        // Interpolate variables
+        const interpolatedCmd = interpolateCommand(cmd, this.config.vars || {}, context);
+
+        // Validate command
+        const validation = validateCommand(interpolatedCmd);
+        if (!validation.valid) {
+          const result: CommandResult = {
+            command: cmd.run,
+            success: false,
+            error: validation.error || 'Invalid command'
+          };
+          results.push(result);
+
+          if (!cmd.continueOnError) {
+            break;
           }
+          continue;
         }
-      }, 100); // 100ms grace - balance between speed and cleanup
-    }, TIMEOUT_MS);
 
-    // Capture output streams
-    child.stdout?.on('data', (data) => {
-      stdout += data.toString();
-      // TODO: Implement size limit truncation
-    });
+        // Execute command
+        const result = await this.executeCommand(interpolatedCmd);
 
-    child.stderr?.on('data', (data) => {
-      stderr += data.toString();
-      // TODO: Implement size limit truncation
-    });
+        results.push({
+          command: cmd.run,
+          ...result
+        });
 
-    // Handle process completion
-    child.on('close', (code, signal) => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
+        if (!result.success && !cmd.continueOnError) {
+          break;
+        }
+      } catch (error: any) {
+        const result: CommandResult = {
+          command: cmd.run,
+          success: false,
+          error: error.message
+        };
+        results.push(result);
+
+        if (!cmd.continueOnError) {
+          break;
+        }
       }
+    }
 
-      if (timedOut) {
-        resolve(formatExecResult(null, stdout, stderr,
-          new Error(`exec: Process timeout after ${TIMEOUT_MS / 1000}s (TIMEOUT)`)));
-      } else if (code !== null) {
-        resolve(formatExecResult(code, stdout, stderr));
-      } else if (signal) {
-        resolve(formatExecResult(null, stdout, stderr,
-          new Error(`Process killed by signal ${signal}`)));
-      }
-    });
-
-    // Handle spawn errors (command not found, etc)
-    child.on('error', (error) => {
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      // Check if it's ENOENT (command not found)
-      if ((error as any).code === 'ENOENT') {
-        resolve(formatExecResult(null, stdout, stderr,
-          new Error(`exec: ${command} not found in PATH (ENOENT)`)));
-      } else {
-        resolve(formatExecResult(null, stdout, stderr, error));
-      }
-    });
-
-
-  });
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/exec/src/executeCommand.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md ===
-# Loaf Architecture
-
-
-IMPORTANT TOOL TESTING NOTES:
-
-- for test specific loaf tools, each tool must get its own test case file, for easy visibility into which tools have been implemented and tested yet.
-- aka `proj/comp/fs-ops/test-data/integration/file_delete.cases.md`
-
-## Core Design Decisions
-
-### Transaction Model
-- **No automatic rollback** - All operations commit, including failures
-- **Failures are data** - LLM needs failure feedback for next steps
-- **Forward-only progress** - Cheaper than regenerating responses
-- **Manual rollback only** - Human-initiated via git commands
-- **Boundary**: One git commit per `execute()` call
-- **API**: Explicit transaction management (details TBD)
-
-### NESL Processing Pipeline
-1. NESL parser (external npm) → AST
-2. AST → Action objects (nesl-ast-converter)
-3. Actions → Execution → Results
-
-### NESL AST Structure
-```typescript
-interface NeslParseResult {
-  blocks: NeslBlock[]
-  errors: NeslError[]
-}
-
-interface NeslBlock {
-  id: string           // 3-char SHA-256
-  properties: {
-    action: string     // Maps to tool name (e.g., "file_write")
-    [key: string]: any // Tool-specific parameters
+    return formatHookResult(results);
   }
-  startLine: number
-  endLine: number
-}
 
-interface NeslError {
-  code: string         // e.g., "DUPLICATE_KEY"
-  line: number
-  column: number
-  length: number
-  blockId: string
-  content: string
-  context: string
-  message: string
+  private async executeCommand(cmd: Command): Promise<Omit<CommandResult, 'command'>> {
+    const timeout = cmd.timeout || 30000;
+    const options = {
+      cwd: cmd.cwd || this.repoPath,
+      timeout,
+      encoding: 'utf8' as const,
+      shell: true  // Ensure shell interpretation for redirects
+    };
+
+    try {
+      const { stdout, stderr } = await execAsync(cmd.run, options);
+      return {
+        success: true,
+        stdout: stdout || '',
+        stderr: stderr || ''
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        stdout: error.stdout || '',
+        stderr: error.stderr || ''
+      };
+    }
+  }
 }
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/parseYamlConfig.ts ===
+import { load } from 'js-yaml';
+import type { HooksConfig } from './types.js';
+
+/**
+ * Parses YAML content into HooksConfig object
+ * @throws Error if YAML is invalid
+ */
+export function parseYamlConfig(content: string): HooksConfig {
+  try {
+    // Empty string returns null from js-yaml
+    if (content.trim() === '') {
+      return null as any;
+    }
+
+    const parsed = load(content);
+    
+    // js-yaml returns undefined for empty documents sometimes
+    if (parsed === undefined) {
+      return null as any;
+    }
+
+    return parsed as HooksConfig;
+  } catch (error: any) {
+    throw new Error(`Invalid YAML: ${error.message}`);
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/parseYamlConfig.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/validateConfig.ts ===
+import type { HooksConfig, ValidationResult } from './types.js';
+
+/**
+ * Validates a parsed config object has correct structure
+ * Checks hooks is object, before/after are arrays, commands are objects
+ * vars is object with string values
+ */
+export function validateConfig(config: any): ValidationResult {
+  // Empty config is valid
+  if (!config || typeof config !== 'object') {
+    return {
+      valid: false,
+      error: 'Config must be an object'
+    };
+  }
+
+  // Check hooks if present
+  if ('hooks' in config && config.hooks !== undefined) {
+    if (typeof config.hooks !== 'object' || config.hooks === null) {
+      return {
+        valid: false,
+        error: 'hooks must be an object'
+      };
+    }
+
+    // Check before hooks
+    if ('before' in config.hooks && config.hooks.before !== undefined) {
+      if (!Array.isArray(config.hooks.before)) {
+        return {
+          valid: false,
+          error: 'hooks.before must be an array'
+        };
+      }
+
+      // Check each before command
+      for (const cmd of config.hooks.before) {
+        if (typeof cmd !== 'object' || cmd === null) {
+          return {
+            valid: false,
+            error: 'hook commands must be objects'
+          };
+        }
+      }
+    }
+
+    // Check after hooks
+    if ('after' in config.hooks && config.hooks.after !== undefined) {
+      if (!Array.isArray(config.hooks.after)) {
+        return {
+          valid: false,
+          error: 'hooks.after must be an array'
+        };
+      }
+
+      // Check each after command
+      for (const cmd of config.hooks.after) {
+        if (typeof cmd !== 'object' || cmd === null) {
+          return {
+            valid: false,
+            error: 'hook commands must be objects'
+          };
+        }
+      }
+    }
+  }
+
+  // Check vars if present
+  if ('vars' in config && config.vars !== undefined) {
+    if (typeof config.vars !== 'object' || config.vars === null || Array.isArray(config.vars)) {
+      return {
+        valid: false,
+        error: 'vars must be an object'
+      };
+    }
+
+    // Check all var values are strings
+    for (const value of Object.values(config.vars)) {
+      if (typeof value !== 'string') {
+        return {
+          valid: false,
+          error: 'var values must be strings'
+        };
+      }
+    }
+  }
+
+  return { valid: true };
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/validateConfig.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/unified-design.yaml ===
+# AI Coder Tools Schema - Unified Design
+
+# Loaf executes filesystem and runtime commands embedded in LLM output using NESL syntax. It provides deterministic filesystem access and shell command execution for LLM coding agents.
+
+# NESL syntax example:
+
+NESL_synatx_example: |
+  ```sh nesl
+  #!nesl [@three-char-SHA-256: k7m]
+  action = "file_write"
+  path = "/tmp/\"hello\".txt"
+  content = <<'EOT_k7m'
+  Hello world!
+  how are you?
+  EOT_k7m
+  #!end_k7m
+  ```
+
+
+tools:
+  # File Operations
+  file_write:
+    type: write
+    executor: fs-ops
+    description: Create new file while creating any necessary parent dirs. overwrites if already exists
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      content: {type: string, required: true}
+    returns: {success: boolean, error?: string}
+    
+  file_replace_text:
+    type: write
+    executor: fs-ops
+    description: Replace first and only instance of substring in file. must exist only once
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      old_text: {type: string, required: true}
+      new_text: {type: string, required: true}
+    returns: {success: boolean, replacements_made?: integer, error?: string}
+    
+  file_replace_text_range:
+    type: write
+    executor: fs-ops
+    description: Replace first and only instance of text range in file. must exist only once
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      old_text_beginning: {type: string, required: true}
+      old_text_end: {type: string, required: true}
+      new_text: {type: string, required: true}
+    returns: {success: boolean, replacements_made?: integer, error?: string}
+    
+  file_replace_all_text:
+    type: write
+    executor: fs-ops
+    description: Replace each matching substring in file.  Number of matches (count) should usually be known and declared ahead of time.
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      old_text: {type: string, required: true}
+      new_text: {type: string, required: true}
+      count: {type: integer, required: false}
+    returns: {success: boolean, replacements_made?: integer, error?: string}
+    
+
+  #tentative!  under consideration
+  files_replace_all_text:
+    type: write
+    executor: fs-ops
+    description: Replace all occurrences of substring in multiple files. Processes each file independently
+    accessibility: [llm]
+    parameters:
+      paths: {type: string, format: multiline_absolute_paths}
+      old_text: {type: string, required: true}
+      new_text: {type: string, required: true}
+    returns: {
+      success: boolean,
+      results: {
+        type: array,
+        items: {
+          path: string,
+          replacements_made: integer,
+          error?: string
+        }
+      },
+      error?: string  # for complete failure
+    }
+
+
+
+  #tentative!  under consideration.  dont implement yet
+  # actually.... for "in parents" stuff lets just use our exisitng tools, but allow "parent" stuff to be added to the path, like ina  syntax we created earlier but forgot about
+  # like:
+  # path/to/file.md@@## Section 2@@### part 3
+  # path/to/code.rs@@MyModuleOrClass@@myFunction
+  files_replace_text_in_parents:
+    type: write
+    executor: fs-ops
+    description: Replace all occurrences of substring in a given node of a parsed file that supports grouping, like markdown, code (ast), etc 
+    accessibility: [llm]
+    parameters:
+      path: {type: string, required: true}
+      parents: {type: string, required: true, format: multiline_absolute_paths} # need to better define how parents are defined
+      old_text: {type: string, required: true}
+      new_text: {type: string, required: true}
+
+
+  file_append:
+    type: write
+    executor: fs-ops
+    description: Append to file
+    accessibility: [llm]
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      content: {type: string, required: true}
+    returns: {success: boolean, error?: string}
+    
+  file_delete:
+    type: write
+    executor: fs-ops
+    description: Delete file
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+    
+  file_move:
+    type: write
+    executor: fs-ops
+    description: Move/rename file
+    accessibility: [llm]
+    output_display: never
+    primary_param: old_path
+    parameters:
+      old_path: {type: string, required: true, format: absolute_path}
+      new_path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+    
+
+
+  file_read:
+    type: read
+    executor: fs-ops
+    description: Read single file content
+    accessibility: [llm]
+    output_display: always
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, content?: string, error?: string}
+
+  file_read_numbered:
+    type: read
+    executor: fs-ops
+    description: Read file content with line numbers for specified line range
+    accessibility: [llm]
+    output_display: always
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      lines: {type: string, required: false, description: "Line range: single '4' or range '23-43'. If omitted, reads all lines."}
+      delimiter: {type: string, required: false, default: ": ", description: "Delimiter between line number and content"}
+    returns: {success: boolean, content?: string, error?: string}
+
+  file_replace_lines:
+    type: write
+    executor: fs-ops
+    description: Replace specified line range in file with new content
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      lines: {type: string, required: true, description: "Line range: single '4' or range '23-43'"}
+      new_content: {type: string, required: true, description: "Content to replace the line range with"}
+    returns: {success: boolean, lines_replaced?: integer, error?: string}
+
+
+  files_read:
+    type: read
+    executor: fs-ops
+    description: Read and concatenate contents of multiple files into a single string, with clear file delimiters
+    accessibility: [llm]
+    output_display: always
+    primary_param: paths
+    parameters:
+      paths: {
+        type: string, 
+        required: true, 
+        format: "multiline_absolute_paths",
+        description: "One absolute file path per line. Empty lines are ignored."
+      }
+    returns: {
+      success: boolean, 
+      data?: {                          # i guess this is formatted wrong... 
+        paths: array, content: array
+        },
+      error?: string
+    }  
+    example: |
+      paths: |
+        /home/user/projects/src/main.py
+        /home/user/projects/src/utils.py
+        /home/user/projects/README.md
+    
+  # Directory Operations
+  dir_create:
+    type: write
+    executor: fs-ops
+    description: Create directory
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+    
+  dir_delete:
+    type: write
+    executor: fs-ops
+    description: Delete directory
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+    
+  # Read Operations
+  ls:
+    type: read
+    executor: fs-ops
+    description: List directory contents
+    accessibility: [llm]
+    output_display: always
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: 
+      success: boolean
+      data:
+        type: array
+        items:
+          name: string
+          type: string  # file|directory
+          size: integer
+          modified: timestamp
+      error: string
+    
+  grep:
+    type: read
+    description: Search pattern in files
+    accessibility: [llm]
+    output_display: always
+    primary_param: pattern
+    parameters:
+      pattern: {type: string, required: true}
+      path: {type: string, required: true, format: absolute_path}
+      include: {type: string, required: false}
+    returns: 
+      success: boolean
+      data:
+        type: array
+        items:
+          file: string
+          line_number: integer
+          line: string
+      error: string
+    
+  glob:
+    type: read
+    description: Find files matching pattern
+    accessibility: [llm]
+    output_display: always
+    primary_param: pattern
+    parameters:
+      pattern: {type: string, required: true}
+      base_path: {type: string, required: true, format: absolute_path}
+    returns: 
+      success: boolean
+      data:
+        type: array
+        items: string
+      error: string
+    
+  # Execution
+  exec:
+    type: dynamic
+    description: Execute code
+    accessibility: [llm]
+    output_display: conditional  # Check return_output parameter
+    primary_param: lang
+    parameters:
+      code: {type: string, required: true}
+      lang: {type: enum, values: [python, javascript, bash], required: true}
+      version: {type: string, required: false}
+      cwd: {type: string, required: false, format: absolute_path}
+      return_output: {type: boolean, required: false, default: true}
+    returns: {success: boolean, stdout?: string, stderr?: string, exit_code?: integer, error?: string}
+
+  # Context Operations -- for much later.  dont do this until loaf has been integrated into bigfoot, the ai llm coder
+  context_add:
+    type: meta
+    description: Add item to working context (persistent)
+    accessibility: [llm, user]
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+      
+  context_remove:
+    type: meta
+    description: Remove item from working context
+    accessibility: [llm, user]
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+    returns: {success: boolean, error?: string}
+      
+  context_list:
+    type: meta
+    description: List items in working context
+    accessibility: [llm, user]
+    parameters: {}
+    returns: 
+      success: boolean
+      data:
+        type: array
+        items:
+          path: string
+          size: integer
+      error: string
+    
+  context_prune:
+    type: meta
+    description: Remove unused items from working context
+    accessibility: [llm, user]
+    parameters: {}
+    returns: {success: boolean, removed?: array of strings, error?: string}
+    
+  context_clear:
+    type: meta
+    description: Clear all working context items
+    accessibility: [llm, user]
+    parameters: {}
+    returns: {success: boolean, error?: string}
+    
+  # Git Operations
+  git_squash:
+    type: git
+    description: Squash commits
+    slash_command: true
+    parameters:
+      mode: {type: enum, values: [auto_ai, ai_messages, hours, days, contiguous_only=true, msg_contains], required: true}
+      message: {type: string, required: false}
+      hours: {type: integer, required: false, when: "mode=hours"}
+      days: {type: integer, required: false, when: "mode=days"}
+      msg_target: {type: string, required: false, when: "mode=msg_contains"}
+    returns: {success: boolean, error?: string}
+      
+  undo:
+    type: git
+    description: Undo last AI changes
+    accessibility: [user]
+    constraints: ["No changes since last AI operation"]
+    parameters: {}
+    returns: {success: boolean, error?: string}
+    
+  git_step_back:
+    type: git
+    description: Move to previous commit
+    accessibility: [user]
+    behavior: Stashes untracked changes
+    parameters: {}
+    returns: {success: boolean, stashed_files?: array of strings, error?: string}
+    
+  git_step_forward:
+    type: git
+    description: Move to next commit
+    accessibility: [user]
+    behavior: Attempts to pop stashed changes
+    parameters: {}
+    returns: {success: boolean, conflicts?: array of strings, error?: string}
+
+# Transaction Management
+transaction_model:
+  strategy: operation_group
+  conflict_detection:
+    methods:
+      - mtime comparison (fast but unreliable)
+      - checksum comparison (slower but accurate)
+      - git status check (catches git-tracked changes)
+    timing:
+      - Check immediately before operation group
+      - Check after each write operation
+      - Final check before commit
+  implementation:
+    - Begin: git commit current state
+    - Execute: track all operations
+    - Validate: check for external modifications
+    - Success: git commit with summary
+    - Failure: git reset --hard to start
+  atomicity: none  # Git operations are NOT atomic at filesystem level
+  
+# Security Model
+security:
+  path_validation:
+    type: allowlist
+    allowed_roots:
+      - /home/user/projects
+      - /tmp/ai-coder
+    blacklist_patterns:
+      - .*\.ssh.*
+      - .*\.git/config
+      - /etc/.*
+      - /sys/.*
+      - /proc/.*
+  canonicalization: required  # Resolve ../ and symlinks before checking
+  
+# System Configuration
+config:
+  encoding: utf-8
+  line_endings: preserve  # Don't normalize
+  max_file_size: 10485760  # 10MB
+  git_auto_push: false  # Require explicit push
+  commit_message_format: "AI: {operation_summary}"
+
+TODO: |   
+  Transaction Safety: The git-based transaction model has race conditions:
+
+    Gap between "git commit" and first operation
+    Non-atomic filesystem ops vs git state
+
+
+# more TODO 
+
+
+  #tentative!  under consideration.  dont implement yet
+  # actually.... for "in parents" stuff lets just use our exisitng tools, but allow "parent" stuff to be added to the path, like ina  syntax we created earlier but forgot about
+  # like:
+  # path/to/file.md@@## Section 2@@### part 3
+  # path/to/code.rs@@MyModuleOrClass@@myFunction
+
+  # and add a wayt o get file numbers per read.  like an attribute to add to file_read to get the text with line numbers. and then a file_lines_replace that takes in a line range and replacement_text params. or maybe even each as an array.  maybe we should just change nesl-js so its not an error to have repeated values.  cos right now its like impossible to make a lot of small changes to a big code file.  but if we new the line number per each... that would make it easy for LLM... 
+=== END FILE: /Users/stuart/repos/loaf/unified-design.yaml ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/ABSTRACT.md ===
+# Security
+
+Validates file system paths against configurable allow/deny rules before fs-ops operations execute, preventing unintended file access.
+
+## Overview
+
+The fs-guard component provides path validation for all file system operations in loaf. It intercepts fs-ops actions before execution, canonicalizes paths to resolve symlinks and relative references, then checks them against user-defined glob patterns. The component supports separate read and write permissions with a most-specific-match precedence system.
+
+Configuration lives in loaf.yml with four lists: read-allow, read-deny, write-allow, and write-deny. Patterns can be relative (resolved from loaf.yml location) or absolute. The validation process follows symlinks via canonicalization, making rules apply to actual file locations rather than symlink paths. When paths match multiple rules, the most specific pattern wins, enabling fine-grained control like denying a directory while allowing specific subdirectories.
+
+The component integrates at the fs-ops executor level, checking every file operation before it proceeds. Operations requiring multiple permissions (like file_replace_text needing both read and write) must pass all checks. Clear error messages distinguish fs-guard violations from operational failures, helping LLMs understand why operations failed.
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/ABSTRACT.md ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/ARCH.md ===
+# fs-guard Architecture
+
+## Design Philosophy
+
+**Minimal Scope, Maximum Clarity**: Only validate fs-ops paths. No exec sandboxing, no network controls, no resource limits. Clear error messages for LLM comprehension.
+
+## Key Design Decisions
+
+### Integration Point
+- Intercept at fs-ops `executeFileOperation` before action dispatch
+- Single validation point for all file system operations
+- No modifications to individual operation handlers
+
+**Rationale**: Clean separation of concerns. Filesystem guards remains pluggable.
+
+### Path Resolution Strategy
+1. Canonicalize input path via `fs.realpath()`
+2. Canonicalize all rule patterns on config load
+3. Match canonical path against canonical patterns
+
+**Rationale**: Prevents symlink traversal attacks. Makes rules predictable.
+
+### Rule Precedence: Most Specific Wins
+```yaml
+read:
+  allow: ["/home/**"]
+  deny: ["/home/user/.ssh/**"]  # More specific, wins
 ```
 
-### Error Propagation Strategy
-- **Parser errors**: Skip blocks with parser errors, execute valid blocks only
-- **Validation errors**: Skip invalid actions, execute valid ones
-- **Execution errors**: Continue with remaining actions
-- **Result**: Complete execution log with successes and failures
+Specificity = count of non-wildcard path segments.
 
-### Action Mapping
-- NESL `action` property maps directly to tool names from unified-design.yaml
-- Use canonical names: `file_write`, `exec`, etc.
+**Rationale**: Enables "deny directory, allow subdirectory" patterns naturally.
 
-### Context Management
-- **V1**: Simple `Set<string>` of file paths
-- **Storage**: In-memory only, no persistence across sessions
-- **V2 Future**: Sub-file references (lines, functions, sections)
-
-### Hooks Integration
-- **Loading**: Lazy-load HooksManager on first execute() if hooks enabled
-- **Config Source**: Options > loaf.yml > no hooks
-- **Before Hook Failure**: Fatal - prevents NESL execution
-- **After Hook Failure**: Non-fatal - recorded but doesn't affect overall success
-- **Context Passing**: Minimal context to after hooks (success, counts)
-- **Variable Interpolation**: Handled by hooks component, not orch
-
-### Execution Model
-- **Synchronous**: All operations block until complete
-- **CWD Management**: Session-based working directory
-  - Default: Repository root
-  - Each exec can override with `cwd` parameter
-  - CWD persists within session, not across transactions
-- **Results Format**: Flat array with sequence numbers
+### Permission Model
 ```typescript
-interface ActionResult {
-  seq: number          // Execution order
-  blockId: string      // NESL block ID
-  action: string       // Action type
-  params: any          // Input parameters
-  success: boolean
-  error?: string       // Error message if failed
-  data?: any           // Action-specific output (stdout, content, etc.)
+const actionPermissions = {
+  file_read: ['read'],
+  file_write: ['write'],
+  file_create: ['write'],
+  file_delete: ['write'],
+  file_replace_text: ['read', 'write'],
+  file_replace_all_text: ['read', 'write'],
+  file_move: ['read:old_path', 'write:new_path'],
+  files_read: ['read:paths'],
+  file_read_numbered: ['read'],
+  // dir operations similar
 }
 ```
 
-### Security Model (V1)
-- **None**: Full filesystem access
-- **No validation**: Any path allowed
-- **No sandboxing**: Direct execution
-- **V2 Future**: Path allowlisting per unified-design.yaml. FOR THIS REASON all fs stuff should immediately be implemented using our fs wrapper functions so this whitelisting/blacklisting is easy to implment in the future.
+**Rationale**: Operations have inherent permission requirements. Move needs read on source, write on destination.
 
-## Component Structure
-```
-loaf/
-├── proj/
-│   ├── comp/
-│   │   ├── nesl-ast-converter/  # AST → Actions
-│   │   ├── fs-ops/              # File/directory operations
-│   │   ├── exec/                # Command execution
-│   │   ├── git-tx/              # Git transaction management
-│   │   └── context/             # Working set management
-│   └── doc/
-│       ├── API.md               # Main orchestrator API
-│       ├── ARCH.md              # This document
-│       └── ABSTRACT.md          # Project overview
+### Configuration Schema
+```yaml
+fs-guard:
+  fs:
+    read:
+      allow: ["./src/**", "/tmp/**"]
+      deny: ["/tmp/ssh-*"]
+    write:
+      allow: ["./src/**", "/tmp/loaf-**"]
+      deny: ["**/.git/**"]
 ```
 
-## Implementation Priorities
-1. `nesl-ast-converter` - Cannot test without this
-2. `fs-ops` - Core functionality
-3. `exec` - Command execution
-4. `git-tx` - Transaction wrapper
-5. `context` - Working set (may be simple enough to inline)
+Relative paths resolved from loaf.yml directory.
 
-## Open Questions
+**Rationale**: Separating read/write enables "read-only" access patterns.
 
-### Critical
-1. **NESL parser package**: `nesl-js` from `github:nesl-lang/nesl-js`
-   - Import: `const { parseNESL } = require('nesl-js')`
-2. **Transaction API**: Single `execute()` method processes NESL block array
+### Error Format
+```typescript
+{
+  success: false,
+  error: "fs-guard violation: Write access denied for '/etc/passwd'"
+}
+```
 
-### Design
-1. **Parser error handling**: Execute blocks with parser errors or skip?
-2. **Git conflict handling**: How to handle conflicts during manual rollback?
-3. **Concurrent access**: Multiple loaf instances on same repo?
-4. **Partial failure behavior**: Continue executing after first failure or abort?
+Not: "EACCES: permission denied" (ambiguous with OS permissions).
 
-### Future
-1. **Context references**: Syntax for line ranges and functions
-2. **Execution isolation**: Container/VM strategy for V2
-3. **Streaming results**: Return results as actions complete or batch at end?
+**Rationale**: LLM needs to distinguish fs-guard policy from system errors.
 
-## Design Rationale
+### Canonicalization Failures
+If `fs.realpath()` fails (file doesn't exist yet):
+- For write operations: Check non-canonical path
+- For read operations: Deny (file doesn't exist anyway)
 
-### Why No Automatic Rollback
-Traditional transaction systems rollback on failure to maintain consistency. Loaf explicitly rejects this because:
-1. **LLM responses are expensive** - Regenerating costs time and money
-2. **Partial success is informative** - LLM learns from failures
-3. **Git preserves history** - Can always manually revert
-4. **Forward progress over perfection** - Incremental improvement model
+**Rationale**: Can't canonicalize paths that don't exist, but need to validate writes creating new files.
 
-### Why Synchronous Execution
-1. **Deterministic results** - LLM needs to know exact outcomes
-2. **Sequential dependencies** - Later actions may depend on earlier ones
-3. **Simpler implementation** - No async state management
-4. **Git compatibility** - Git operations are inherently synchronous
+### Default Policy
+not sure about this.  maybe defauls is that `/` is denied for everything?  so specific whitelists are needed?  and maybe the current repo is whitelisted?  
 
-### Why In-Memory Context
-1. **Session isolation** - Each LLM conversation is independent
-2. **No persistence complexity** - No file format versioning
-3. **Git is the source of truth** - Files on disk matter, not context
-4. **Quick reset** - New session = clean slate
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md ===
+
+### TOCTOU Acceptance
+Race condition between canonicalization and operation is unsolvable without filesystem locks.
+
+**Documented limitation**: Paths can change between check and use.
+
+## Performance Considerations
+
+### Canonicalization Cache
+Don't cache. Filesystem state changes; cache invalidation is error-prone.
+
+**Rationale**: Correctness over performance for filesystem guardrail.
+
+### Pattern Compilation
+Compile glob patterns once at config load, not per check.
+
+**Rationale**: Glob compilation is expensive; patterns are static.
+
+## Glob Library Choice
+Use `minimatch` with options:
+```typescript
+{
+  dot: true,      // Match hidden files
+  nonegate: true, // No '!' patterns
+  nocase: false   // Case sensitive
+}
+```
+
+**Rationale**: Most common, well-tested. Options prevent surprises.
+
+## Operation-Specific Logic
+
+### file_move
+- Check read permission on `old_path`
+- Check write permission on `new_path`
+- Both must pass
+
+### files_read
+- Extract each path from multi-line `paths` parameter
+- Check read permission on each
+- Fail fast on first denial
+
+### New File Creation
+- Parent directory must exist for canonicalization
+- If parent missing, check non-canonical path
+- Let fs-ops handle missing parent error
+
+## Testing Strategy
+Test cases must verify:
+1. Symlink traversal blocked
+2. Most-specific matching
+3. Relative path resolution
+4. Non-existent path handling
+5. Each operation's permission mapping
+
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/ARCH.md ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/TODO.md ===
+need to update loaf.yaml config handling:
+
+https://claude.ai/chat/50860d9f-c4eb-4b91-980c-522e89bdfc1c
+
+
+> Your current design has fs-guard at the executor level, but executors are stateless.
+
+> huh?
+
+
+
+> and how are the configs currently getting passed around?  and what do you think is the correct way to do that  regardless of what we're doing now? it might be kind of a mess.  since that yaml file wasn't introduced until the most recent component we wrote, hooks.
+
+---
+
+Looking at the code:
+
+## Current Config Flow
+
+1. **hooks**: Config passed via constructor OR loaded from `loaf.yml`
+2. **fs-ops/exec**: No config mechanism - they're pure executors
+3. **orch**: Creates hooks with config, passes nothing to executors
+
+## The "Stateless" Confusion
+
+I was wrong - executors maintain no state between calls, but that's fine. They're functions, not services.
+
+## Config Distribution Options
+
+**Option 1: Executor Factory** (Current hooks pattern)
+```typescript
+const fsOps = new FsOpsExecutor({ guard: fsGuardConfig });
+executors.set('file_read', (action) => fsOps.execute(action));
+```
+
+**Option 2: Context Parameter**
+```typescript
+executeFileOperation(action, { security: securityConfig })
+```
+
+**Option 3: Global Config Registry**
+```typescript
+// In orch
+ConfigRegistry.set('fs-guard', config);
+// In fs-ops
+const config = ConfigRegistry.get('fs-guard');
+```
+
+## Recommendation
+
+**Option 1** is cleanest - orch instantiates fs-guard, passes to fs-ops constructor. This matches the hooks pattern and keeps config flow explicit. The "mess" is that fs-ops/exec were designed before configuration needs existed.
+
+The real question: Should fs-guard config live in `loaf.yml` alongside hooks? If yes, orch needs to parse and distribute all configs at startup.
+
+
+> Should fs-guard config live in loaf.yml alongside hooks? If yes, orch needs to parse and distribute all configs at startup.
+
+> yes, right?  seems like a mess to have multiple config files.  wdyt
+
+
+Yes, single config file. Multiple files = configuration sprawl, discovery problems, sync issues.
+
+## Config Structure in loaf.yml
+
+```yaml
+version: 1
+
+hooks:
+  before: []
+  after: []
+
+fs-guard:
+  mode: allowlist  # or denylist
+  allowed:
+    - "./**"
+    - "/tmp/loaf-**"
+  denied: []
+  followSymlinks: false
+
+# Future sections:
+# exec-guard:
+#   languages: [python, javascript]
+#   timeout: 30000
+```
+
+## Implementation Path
+
+1. **Extend loaf.yml parsing** - orch already loads it for hooks
+2. **Pass to executors at construction** - orch instantiates fs-ops with fs-guard config
+3. **fs-guard as fs-ops dependency** - fs-ops constructor creates guard instance
+
+## Critical Issue
+
+Current orch dynamically imports executors on-demand. With config, needs upfront instantiation:
+
+```typescript
+// Current: lazy loading
+if (!loadedExecutors[executor]) {
+  const module = await executorModules[executor]();
+}
+
+// Needed: eager instantiation with config
+const fsOps = new FsOpsExecutor({ 
+  guard: config['fs-guard'] 
+});
+```
+
+This breaks the lazy-loading pattern. Worth it for cleaner config flow.
+
+------------------------
+
+
+## Config Architecture Refactor Guide
+
+### Core Problem
+Current executors are stateless functions with no config injection point. Need to enable per-component configuration while maintaining clean separation of concerns.
+
+### Design Decisions
+
+1. **Mandatory fs-guard** - No opt-out. Simpler mental model, security by default
+2. **Single config file** - `loaf.yml` contains all component configs
+3. **Executor classes** - Replace function exports with classes that accept dependencies
+4. **Eager instantiation** - Load all executors upfront with config, abandon lazy loading
+
+### Implementation Steps
+
+#### 1. Define Config Types
+Create `/proj/comp/orch/src/types.ts`:
+```typescript
+export interface LoafConfig {
+  version: number;
+  hooks?: HooksConfig;
+  'fs-guard'?: FsGuardConfig;
+  'exec-guard'?: ExecGuardConfig; // future
+}
+
+export interface FsGuardConfig {
+  allowed?: string[];
+  denied?: string[];
+  followSymlinks?: boolean;
+}
+```
+
+#### 2. Create FsGuard Component
+Create `/proj/comp/fs-guard/src/types.ts`:
+```typescript
+export interface GuardCheckResult {
+  allowed: boolean;
+  reason?: string;
+}
+```
+
+Create `/proj/comp/fs-guard/src/FsGuard.ts`:
+```typescript
+export class FsGuard {
+  constructor(private config: FsGuardConfig, private repoRoot: string) {}
+  
+  async check(action: LoafAction): Promise<GuardCheckResult> {
+    // Extract paths based on action type
+    // Canonicalize paths
+    // Check against rules with most-specific-wins
+  }
+}
+```
+
+#### 3. Convert fs-ops to Class
+Modify `/proj/comp/fs-ops/src/index.ts`:
+```typescript
+export class FsOpsExecutor {
+  private handlers: Map<string, (action: LoafAction) => Promise<FileOpResult>>;
+  
+  constructor(private guard: FsGuard) {
+    this.handlers = new Map([
+      ['file_write', this.handleFileWrite.bind(this)],
+      ['file_read', this.handleFileRead.bind(this)],
+      // ... move all existing handlers here
+    ]);
+  }
+  
+  async execute(action: LoafAction): Promise<FileOpResult> {
+    const guardResult = await this.guard.check(action);
+    if (!guardResult.allowed) {
+      return {
+        success: false,
+        error: `fs-guard: ${guardResult.reason}`
+      };
+    }
+    
+    const handler = this.handlers.get(action.action);
+    if (!handler) {
+      return {
+        success: false,
+        error: `Unknown action: ${action.action}`
+      };
+    }
+    
+    return handler(action);
+  }
+  
+  // Move existing handler functions as private methods
+  private async handleFileWrite(action: LoafAction): Promise<FileOpResult> {
+    // Existing handleFileWrite code
+  }
+}
+
+// Keep backward compatibility export for tests
+export async function executeFileOperation(action: LoafAction): Promise<FileOpResult> {
+  throw new Error('Direct function call deprecated. Use FsOpsExecutor class.');
+}
+```
+
+#### 4. Convert exec to Class
+Similar pattern for `/proj/comp/exec/src/index.ts`:
+```typescript
+export class ExecExecutor {
+  constructor(/* future: execGuard */) {}
+  
+  async execute(action: LoafAction): Promise<FileOpResult> {
+    // Move executeCommand logic here
+  }
+}
+```
+
+#### 5. Create Config Loader
+Create `/proj/comp/orch/src/loadConfig.ts`:
+```typescript
+export async function loadConfig(repoPath: string): Promise<LoafConfig> {
+  const configPath = join(repoPath, 'loaf.yml');
+  
+  try {
+    const content = await readFile(configPath, 'utf8');
+    const config = loadYaml(content) as LoafConfig;
+    
+    // Validate config structure
+    if (!config.version) {
+      throw new Error('Config missing version');
+    }
+    
+    return config;
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      // Return default config
+      return {
+        version: 1,
+        'fs-guard': {
+          allowed: [`${repoPath}/**`],
+          denied: ['/**']
+        }
+      };
+    }
+    throw error;
+  }
+}
+```
+
+#### 6. Refactor Orchestrator
+Modify `/proj/comp/orch/src/index.ts`:
+```typescript
+export class Loaf {
+  private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>>;
+  private config: LoafConfig;
+  
+  constructor(options: LoafOptions = {}) {
+    this.options = {
+      repoPath: options.repoPath || process.cwd(),
+      // ...
+    };
+  }
+  
+  async execute(llmOutput: string): Promise<ExecutionResult> {
+    // Initialize executors on first use
+    if (!this.executors) {
+      await this.initializeExecutors();
+    }
+    
+    // Rest of existing execute logic
+  }
+  
+  private async initializeExecutors(): Promise<void> {
+    // Load config
+    this.config = await loadConfig(this.options.repoPath!);
+    
+    // Initialize hooks if enabled
+    if (this.options.enableHooks) {
+      // Existing hooks initialization, using this.config.hooks
+    }
+    
+    // Create fs-guard
+    const fsGuard = new FsGuard(
+      this.config['fs-guard'] || {
+        allowed: [`${this.options.repoPath}/**`],
+        denied: ['/**']
+      },
+      this.options.repoPath!
+    );
+    
+    // Create executors
+    const fsOps = new FsOpsExecutor(fsGuard);
+    const exec = new ExecExecutor();
+    
+    // Build routing table from unified-design.yaml
+    this.executors = new Map();
+    const design = await this.loadUnifiedDesign();
+    
+    for (const [actionName, actionDef] of Object.entries(design.tools)) {
+      const executorName = (actionDef as any).executor;
+      
+      switch (executorName) {
+        case 'fs-ops':
+          this.executors.set(actionName, (action) => fsOps.execute(action));
+          break;
+        case 'exec':
+          this.executors.set(actionName, (action) => exec.execute(action));
+          break;
+        // Future executors...
+      }
+    }
+  }
+}
+```
+
+#### 7. Update Tests
+Tests need to construct executors with guards:
+```typescript
+// fs-ops tests
+const guard = new FsGuard({ allowed: ['test/**'] }, '/test/root');
+const executor = new FsOpsExecutor(guard);
+const result = await executor.execute(action);
+```
+
+### Rationale
+
+**Why classes over functions**: Dependency injection requires construction-time config. Functions can't hold state cleanly.
+
+**Why eager loading**: Config validation should fail fast. Memory cost negligible for ~10 executors.
+
+**Why fs-guard mandatory**: Optional security is no security. Tests can use permissive guards.
+
+**Why single config file**: Multiple configs = synchronization bugs. One source of truth.
+
+### Migration Risk
+
+Breaking changes to all executor interfaces. But no production users yet, so now is the time.
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-guard/doc/TODO.md ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/minimal.test.ts ===
+import { describe, it, expect } from 'vitest';
+import { writeFileSync, readFileSync, unlinkSync, existsSync } from 'fs';
+
+describe('minimal fs test', () => {
+  it('can write and read files', () => {
+    const path = '/tmp/minimal-test.txt';
+    const content = 'test content';
+    
+    // Write
+    writeFileSync(path, content);
+    
+    // Read
+    const read = readFileSync(path, 'utf8');
+    expect(read).toBe(content);
+    
+    // Cleanup
+    unlinkSync(path);
+    expect(existsSync(path)).toBe(false);
+  });
+  
+  it('can run multiple times', () => {
+    for (let i = 0; i < 10; i++) {
+      const path = `/tmp/minimal-${i}.txt`;
+      writeFileSync(path, `content ${i}`);
+      unlinkSync(path);
+    }
+    expect(true).toBe(true);
+  });
+});
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/minimal.test.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/use-listener/instruct.md ===
+# NESL Tool API Reference
+
+these are tools that the user will execute on their machine after your response is complete
+
+## NESL Syntax example 
+
+
+```sh nesl
+#!nesl [@three-char-SHA-256: q8r]
+action = "tool_name"
+param1 = <<'EOT_q8r'
+value line 1
+
+ value line 2
+EOT_q8r
+param2 = "value"
+#!end_q8r
+```
+
+equivalent json:
+
+```json
+{
+ "action": "tool_name",
+ "param1": "value line 1\n\n value line 2",
+ "param2": "value"
+}
+```
+
+**Critical constraints:**
+- Paths: always absolute
+- Whitespace: preserved exactly in heredocs
+
+## Tools
+
+### `file_write` - Create/overwrite file
+```sh
+#!nesl [@three-char-SHA-256: fw1]
+action = "file_write"
+path = "/home/user/script.py"
+content = <<'EOT_fw1'
+#!/usr/bin/env python3
+print("Hello")
+EOT_fw1
+#!end_fw1
+```
+
+### `file_replace_text` - Replace one occurrence
+```sh
+#!nesl [@three-char-SHA-256: fr2]
+action = "file_replace_text"
+path = "/etc/config.ini"
+old_text = <<'EOT_fr2'
+debug = false
+EOT_fr2
+new_text = <<'EOT_fr2'
+debug = true
+EOT_fr2
+#!end_fr2
+```
+
+### `file_read` - Read single file
+```sh
+#!nesl [@three-char-SHA-256: rd3]
+action = "file_read"
+path = "/var/log/app.log"
+#!end_rd3
+```
+
+### `files_read` - Read multiple files
+```sh
+#!nesl [@three-char-SHA-256: rm4]
+action = "files_read"
+paths = <<'EOT_rm4'
+/tmp/file1.txt
+/tmp/file2.txt
+/usr/local/bin/script.sh
+EOT_rm4
+#!end_rm4
+```
+=== END FILE: /Users/stuart/repos/loaf/use-listener/instruct.md ===
 

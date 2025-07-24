@@ -106,3 +106,238 @@ const fsOps = new FsOpsExecutor({
 ```
 
 This breaks the lazy-loading pattern. Worth it for cleaner config flow.
+
+------------------------
+
+
+## Config Architecture Refactor Guide
+
+### Core Problem
+Current executors are stateless functions with no config injection point. Need to enable per-component configuration while maintaining clean separation of concerns.
+
+### Design Decisions
+
+1. **Mandatory fs-guard** - No opt-out. Simpler mental model, security by default
+2. **Single config file** - `loaf.yml` contains all component configs
+3. **Executor classes** - Replace function exports with classes that accept dependencies
+4. **Eager instantiation** - Load all executors upfront with config, abandon lazy loading
+
+### Implementation Steps
+
+#### 1. Define Config Types
+Create `/proj/comp/orch/src/types.ts`:
+```typescript
+export interface LoafConfig {
+  version: number;
+  hooks?: HooksConfig;
+  'fs-guard'?: FsGuardConfig;
+  'exec-guard'?: ExecGuardConfig; // future
+}
+
+export interface FsGuardConfig {
+  allowed?: string[];
+  denied?: string[];
+  followSymlinks?: boolean;
+}
+```
+
+#### 2. Create FsGuard Component
+Create `/proj/comp/fs-guard/src/types.ts`:
+```typescript
+export interface GuardCheckResult {
+  allowed: boolean;
+  reason?: string;
+}
+```
+
+Create `/proj/comp/fs-guard/src/FsGuard.ts`:
+```typescript
+export class FsGuard {
+  constructor(private config: FsGuardConfig, private repoRoot: string) {}
+  
+  async check(action: LoafAction): Promise<GuardCheckResult> {
+    // Extract paths based on action type
+    // Canonicalize paths
+    // Check against rules with most-specific-wins
+  }
+}
+```
+
+#### 3. Convert fs-ops to Class
+Modify `/proj/comp/fs-ops/src/index.ts`:
+```typescript
+export class FsOpsExecutor {
+  private handlers: Map<string, (action: LoafAction) => Promise<FileOpResult>>;
+  
+  constructor(private guard: FsGuard) {
+    this.handlers = new Map([
+      ['file_write', this.handleFileWrite.bind(this)],
+      ['file_read', this.handleFileRead.bind(this)],
+      // ... move all existing handlers here
+    ]);
+  }
+  
+  async execute(action: LoafAction): Promise<FileOpResult> {
+    const guardResult = await this.guard.check(action);
+    if (!guardResult.allowed) {
+      return {
+        success: false,
+        error: `fs-guard: ${guardResult.reason}`
+      };
+    }
+    
+    const handler = this.handlers.get(action.action);
+    if (!handler) {
+      return {
+        success: false,
+        error: `Unknown action: ${action.action}`
+      };
+    }
+    
+    return handler(action);
+  }
+  
+  // Move existing handler functions as private methods
+  private async handleFileWrite(action: LoafAction): Promise<FileOpResult> {
+    // Existing handleFileWrite code
+  }
+}
+
+// Keep backward compatibility export for tests
+export async function executeFileOperation(action: LoafAction): Promise<FileOpResult> {
+  throw new Error('Direct function call deprecated. Use FsOpsExecutor class.');
+}
+```
+
+#### 4. Convert exec to Class
+Similar pattern for `/proj/comp/exec/src/index.ts`:
+```typescript
+export class ExecExecutor {
+  constructor(/* future: execGuard */) {}
+  
+  async execute(action: LoafAction): Promise<FileOpResult> {
+    // Move executeCommand logic here
+  }
+}
+```
+
+#### 5. Create Config Loader
+Create `/proj/comp/orch/src/loadConfig.ts`:
+```typescript
+export async function loadConfig(repoPath: string): Promise<LoafConfig> {
+  const configPath = join(repoPath, 'loaf.yml');
+  
+  try {
+    const content = await readFile(configPath, 'utf8');
+    const config = loadYaml(content) as LoafConfig;
+    
+    // Validate config structure
+    if (!config.version) {
+      throw new Error('Config missing version');
+    }
+    
+    return config;
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      // Return default config
+      return {
+        version: 1,
+        'fs-guard': {
+          allowed: [`${repoPath}/**`],
+          denied: ['/**']
+        }
+      };
+    }
+    throw error;
+  }
+}
+```
+
+#### 6. Refactor Orchestrator
+Modify `/proj/comp/orch/src/index.ts`:
+```typescript
+export class Loaf {
+  private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>>;
+  private config: LoafConfig;
+  
+  constructor(options: LoafOptions = {}) {
+    this.options = {
+      repoPath: options.repoPath || process.cwd(),
+      // ...
+    };
+  }
+  
+  async execute(llmOutput: string): Promise<ExecutionResult> {
+    // Initialize executors on first use
+    if (!this.executors) {
+      await this.initializeExecutors();
+    }
+    
+    // Rest of existing execute logic
+  }
+  
+  private async initializeExecutors(): Promise<void> {
+    // Load config
+    this.config = await loadConfig(this.options.repoPath!);
+    
+    // Initialize hooks if enabled
+    if (this.options.enableHooks) {
+      // Existing hooks initialization, using this.config.hooks
+    }
+    
+    // Create fs-guard
+    const fsGuard = new FsGuard(
+      this.config['fs-guard'] || {
+        allowed: [`${this.options.repoPath}/**`],
+        denied: ['/**']
+      },
+      this.options.repoPath!
+    );
+    
+    // Create executors
+    const fsOps = new FsOpsExecutor(fsGuard);
+    const exec = new ExecExecutor();
+    
+    // Build routing table from unified-design.yaml
+    this.executors = new Map();
+    const design = await this.loadUnifiedDesign();
+    
+    for (const [actionName, actionDef] of Object.entries(design.tools)) {
+      const executorName = (actionDef as any).executor;
+      
+      switch (executorName) {
+        case 'fs-ops':
+          this.executors.set(actionName, (action) => fsOps.execute(action));
+          break;
+        case 'exec':
+          this.executors.set(actionName, (action) => exec.execute(action));
+          break;
+        // Future executors...
+      }
+    }
+  }
+}
+```
+
+#### 7. Update Tests
+Tests need to construct executors with guards:
+```typescript
+// fs-ops tests
+const guard = new FsGuard({ allowed: ['test/**'] }, '/test/root');
+const executor = new FsOpsExecutor(guard);
+const result = await executor.execute(action);
+```
+
+### Rationale
+
+**Why classes over functions**: Dependency injection requires construction-time config. Functions can't hold state cleanly.
+
+**Why eager loading**: Config validation should fail fast. Memory cost negligible for ~10 executors.
+
+**Why fs-guard mandatory**: Optional security is no security. Tests can use permissive guards.
+
+**Why single config file**: Multiple configs = synchronization bugs. One source of truth.
+
+### Migration Risk
+
+Breaking changes to all executor interfaces. But no production users yet, so now is the time.
