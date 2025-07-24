@@ -44,9 +44,11 @@ const execAsync = promisify(exec);
 // Main class
 export class HooksManager {
   private config: HooksConfig;
+  private repoPath: string;
 
-  constructor(config?: HooksConfig) {
+  constructor(config?: HooksConfig, repoPath?: string) {
     this.config = config || { hooks: {}, vars: {} };
+    this.repoPath = repoPath || process.cwd();
   }
 
   async runBefore(context?: HookContext): Promise<HookResult> {
@@ -133,7 +135,7 @@ export class HooksManager {
   private async executeCommand(cmd: Command): Promise<Omit<CommandResult, 'command'>> {
     const timeout = cmd.timeout || 30000;
     const options = {
-      cwd: cmd.cwd || process.cwd(),
+      cwd: cmd.cwd || this.repoPath,
       timeout,
       encoding: 'utf8' as const
     };

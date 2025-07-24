@@ -175,10 +175,16 @@ vars:
     const subDir = `${TEST_DIR}/subdir`;
     mkdirSync(subDir, { recursive: true });
     
+    // Use Node.js to create a cross-platform test
+    // This avoids shell-specific differences
+    const testScript = process.platform === 'win32' 
+      ? 'node -e "require(\'fs\').writeFileSync(\'test-cwd.txt\', \'cwd-test\')"'
+      : 'node -e "require(\'fs\').writeFileSync(\'test-cwd.txt\', \'cwd-test\')"';
+    
     const config = {
       hooks: {
         before: [
-          { run: 'pwd > output.txt', cwd: subDir }
+          { run: testScript, cwd: subDir }
         ]
       }
     };
@@ -187,15 +193,10 @@ vars:
     const result = await hooks.runBefore();
     
     expect(result.success).toBe(true);
-    const output = readFileSync(`${subDir}/output.txt`, 'utf8').trim();
     
-    // On macOS, /tmp is a symlink to /private/tmp, so pwd might return the resolved path
-    // We need to handle both cases for cross-platform compatibility
-    const expectedPaths = [
-      subDir,
-      subDir.replace(/^\/tmp/, '/private/tmp')
-    ];
-    
-    expect(expectedPaths).toContain(output);
+    // Verify the file was created in the correct directory
+    const testFilePath = join(subDir, 'test-cwd.txt');
+    expect(existsSync(testFilePath)).toBe(true);
+    expect(readFileSync(testFilePath, 'utf8')).toBe('cwd-test');
   });
 });

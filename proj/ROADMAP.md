@@ -59,3 +59,7 @@ File not found: No file named "/Users/stuart/repos/loaf/proj/comp/hooks/src/inde
 ```
 
 - the /Users/stuart/repos/loaf/use-listener/test-listener-live.ts script is VERY SLOW TO USE!!! SLOW AT SAVING FILES!!! wtf why??? and i want it to prepend results to the input file AS EACH ITEM SUCCEEDS.  dont wait for the whole thing. and our debug needs more outputs for exec stuff.  show the whole stdout etc
+
+---
+
+claude is really bad at using numbered file reads.  it keeps requesting line ranges for numbered file reads that are totally stupid and terrible.  but then it never actually uses the replace by lines number function anyway.  it thinks about stuff per section.  need to give it that capability in search/repalce

@@ -1,23 +1,946 @@
 === LOAF RESULTS ===
-j1k ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-basic.test.ts
-k2l ✅ exec bash
+rd1 ✅ files_read (4 files)
 === END ===
 
 === OUTPUTS ===
 
-[k2l] exec bash:
-stdout:
+[rd1] files_read:
+Reading 4 files:
+- /Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts
+- /Users/stuart/repos/loaf/proj/comp/orch/test-data/integration/hooks-integration.md
+- /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+- /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
 
-> loaf@0.1.0 test
-> vitest run proj/comp/hooks/test/integration/hooks-basic.test.ts
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts ===
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync, existsSync, mkdirSync, rmSync } from 'fs';
+import { join } from 'path';
+import { Loaf } from '../../src/index.js';
+import { parseTestFile } from '../utils/parseTestFile.js';
 
+describe('Hooks Integration', () => {
+  const testDataPath = join(import.meta.dirname, '../../test-data/integration/hooks-integration.md');
+  const testCases = parseTestFile(testDataPath);
 
- RUN  v1.6.1 /Users/stuart/repos/loaf
+  beforeEach(() => {
+    // Ensure temp directories exist
+    if (!existsSync('/tmp')) {
+      throw new Error('Tests require /tmp directory');
+    }
+  });
 
- ✓ proj/comp/hooks/test/integration/hooks-basic.test.ts  (8 tests) 211ms
+  afterEach(() => {
+    // Cleanup test directories
+    const dirs = [
+      '/tmp/t_hooks_integration_001',
+      '/tmp/t_hooks_integration_002',
+      '/tmp/t_hooks_integration_003',
+      '/tmp/t_hooks_integration_004',
+      '/tmp/t_hooks_integration_005'
+    ];
+    
+    for (const dir of dirs) {
+      if (existsSync(dir)) {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  });
 
- Test Files  1 passed (1)
-      Tests  8 passed (8)
-   Start at  23:54:19
-   Duration  844ms (transform 85ms, setup 0ms, collect 95ms, tests 211ms, environment 0ms, prepare 135ms)
+  for (const testCase of testCases) {
+    test(testCase.name, async () => {
+      // Setup
+      if (testCase.config?.repoPath && !existsSync(testCase.config.repoPath)) {
+        mkdirSync(testCase.config.repoPath, { recursive: true });
+      }
+
+      // Create Loaf instance with test config
+      const loaf = new Loaf(testCase.config);
+
+      // Execute
+      const result = await loaf.execute(testCase.input);
+      
+      // Debug output
+      console.log(`\n=== Test: ${testCase.name} ===`);
+      console.log('Config:', JSON.stringify(testCase.config, null, 2));
+      console.log('Result:', JSON.stringify(result, null, 2));
+
+      // Basic assertions
+      expect(result.success).toBe(testCase.expected.success);
+      expect(result.totalBlocks).toBe(testCase.expected.totalBlocks);
+      expect(result.executedActions).toBe(testCase.expected.executedActions);
+
+      // Verify hook errors if expected
+      if (testCase.expected.hookErrors) {
+        expect(result.hookErrors).toBeDefined();
+        if (testCase.expected.hookErrors.before) {
+          expect(result.hookErrors?.before).toBeDefined();
+          expect(result.hookErrors?.before?.length).toBeGreaterThan(0);
+        }
+      }
+
+      // Verify fatal error if expected
+      if (testCase.expected.fatalError) {
+        expect(result.fatalError).toBe(testCase.expected.fatalError);
+      }
+
+      // Test-specific verifications
+      if (testCase.verify) {
+        const repoPath = testCase.config?.repoPath;
+        
+        if (!repoPath) {
+          throw new Error(`Test ${testCase.name} has verify=true but no repoPath in config`);
+        }
+        
+        switch (testCase.name) {
+          case '001-basic-hooks-execution': {
+            const tracePath = join(repoPath, 'hook-trace.txt');
+            expect(existsSync(tracePath)).toBe(true);
+            const trace = readFileSync(tracePath, 'utf8');
+            expect(trace).toContain('BEFORE_RAN');
+            expect(trace).toContain('AFTER_RAN');
+            expect(trace).toContain('FILES_MODIFIED=');
+            break;
+          }
+          
+          case '002-hooks-with-failures': {
+            const resultPath = join(repoPath, 'result.txt');
+            expect(existsSync(resultPath)).toBe(true);
+            const content = readFileSync(resultPath, 'utf8');
+            expect(content).toContain('SUCCESS=false');
+            expect(content).toContain('ERRORS=1');
+            break;
+          }
+          
+          case '003-before-hook-failure-aborts': {
+            const testPath = join(repoPath, 'test.txt');
+            const afterPath = join(repoPath, 'after.txt');
+            expect(existsSync(testPath)).toBe(false);
+            expect(existsSync(afterPath)).toBe(false);
+            break;
+          }
+          
+          case '004-context-variables-in-hooks': {
+            const summaryPath = join(repoPath, 'summary.txt');
+            expect(existsSync(summaryPath)).toBe(true);
+            const summary = readFileSync(summaryPath, 'utf8');
+            expect(summary).toContain('Total blocks: 2');
+            expect(summary).toContain('Executed: 2');
+            expect(summary).toContain('Operations: file_write,file_read');
+            break;
+          }
+          
+          case '005-loaf-yml-auto-creation': {
+            const configPath = join(repoPath, 'loaf.yml');
+            expect(existsSync(configPath)).toBe(true);
+            const testPath = join(repoPath, 'test.txt');
+            expect(existsSync(testPath)).toBe(true);
+            break;
+          }
+        }
+      }
+    });
+  }
+});
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/test-data/integration/hooks-integration.md ===
+# Hooks Integration Test Cases
+
+## 001-basic-hooks-execution
+
+Tests that before and after hooks execute correctly around NESL operations.
+
+```yaml
+config:
+  repoPath: /tmp/t_hooks_integration_001
+  hooks:
+    before:
+      - run: echo 'BEFORE_RAN' > hook-trace.txt
+    after:
+      - run: echo 'AFTER_RAN' >> hook-trace.txt
+      - run: echo 'FILES_MODIFIED=${modifiedFiles}' >> hook-trace.txt
+```
+
+```sh nesl
+#!nesl [@three-char-SHA-256: bhe]
+action = "file_write"
+path = "/tmp/t_hooks_integration_001/test.txt"
+content = "Hello from NESL"
+#!end_bhe
+```
+
+```json
+{
+  "success": true,
+  "totalBlocks": 1,
+  "executedActions": 1,
+  "results": [
+    {
+      "seq": 1,
+      "blockId": "bhe",
+      "action": "file_write",
+      "params": {
+        "path": "test.txt",
+        "content": "Hello from NESL"
+      },
+      "success": true
+    }
+  ],
+  "parseErrors": []
+}
+```
+
+Verify:
+- hook-trace.txt contains "BEFORE_RAN\nAFTER_RAN\nFILES_MODIFIED=test.txt"
+
+## 002-hooks-with-failures
+
+Tests hook behavior when NESL operations fail.
+
+```yaml
+config:
+  repoPath: /tmp/t_hooks_integration_002
+  hooks:
+    before:
+      - run: mkdir -p nested/dir
+    after:
+      - run: echo 'SUCCESS=${success}' > result.txt
+      - run: echo 'ERRORS=${errorCount}' >> result.txt
+```
+
+```sh nesl
+#!nesl [@three-char-SHA-256: hwf]
+action = "file_write"
+path = "/invalid\0path/test.txt"
+content = "This will fail"
+#!end_hwf
+```
+
+```json
+{
+  "success": false,
+  "totalBlocks": 1,
+  "executedActions": 1,
+  "results": [
+    {
+      "seq": 1,
+      "blockId": "hwf",
+      "action": "file_write",
+      "params": {
+        "path": "/invalid\\0path/test.txt",
+        "content": "This will fail"
+      },
+      "success": false,
+      "error": "Invalid path: contains null character"
+    }
+  ],
+  "parseErrors": []
+}
+```
+
+Verify:
+- result.txt contains "SUCCESS=false\nERRORS=1"
+
+## 003-before-hook-failure-aborts
+
+Tests that before hook failures prevent NESL execution.
+
+```yaml
+config:
+  repoPath: /tmp/t_hooks_integration_003
+  hooks:
+    before:
+      - run: "false"  # Always fails
+    after:
+      - run: echo 'SHOULD_NOT_RUN' > after.txt
+```
+
+```sh nesl
+#!nesl [@three-char-SHA-256: bhf]
+action = "file_write"
+path = "/tmp/t_hooks_integration_003/test.txt"
+content = "Should not be written"
+#!end_bhf
+```
+
+```json
+{
+  "success": false,
+  "totalBlocks": 0,
+  "executedActions": 0,
+  "results": [],
+  "parseErrors": [],
+  "hookErrors": {
+    "before": ["false: Command failed with exit code 1"]
+  },
+  "fatalError": "Before hooks failed - aborting execution"
+}
+```
+
+Verify:
+- test.txt does not exist
+- after.txt does not exist
+
+## 004-context-variables-in-hooks
+
+Tests that context variables are properly passed to hooks.
+
+```yaml
+config:
+  repoPath: /tmp/t_hooks_integration_004
+  hooks:
+    after:
+      - run: |
+          cat > summary.txt << EOF
+          Total blocks: ${totalBlocks}
+          Executed: ${executedActions}
+          Operations: ${operations}
+          EOF
+  vars:
+    CUSTOM_VAR: "test123"
+```
+
+```sh nesl
+#!nesl [@three-char-SHA-256: cv1]
+action = "file_write"
+path = "/tmp/t_hooks_integration_004/file1.txt"
+content = "First file"
+#!end_cv1
+
+#!nesl [@three-char-SHA-256: cv2]
+action = "file_read"
+path = "/tmp/t_hooks_integration_004/file1.txt"
+#!end_cv2
+```
+
+```json
+{
+  "success": true,
+  "totalBlocks": 2,
+  "executedActions": 2,
+  "results": [
+    {
+      "seq": 1,
+      "blockId": "cv1",
+      "action": "file_write",
+      "params": {
+        "path": "file1.txt",
+        "content": "First file"
+      },
+      "success": true
+    },
+    {
+      "seq": 2,
+      "blockId": "cv2",
+      "action": "file_read",
+      "params": {
+        "path": "file1.txt"
+      },
+      "success": true,
+      "data": "First file"
+    }
+  ],
+  "parseErrors": []
+}
+```
+
+Verify:
+- summary.txt contains:
+  ```
+  Total blocks: 2
+  Executed: 2
+  Operations: file_write,file_read
+  ```
+
+## 005-loaf-yml-auto-creation
+
+Tests that loaf.yml is created when missing and hooks are enabled.
+
+```yaml
+config:
+  repoPath: /tmp/t_hooks_integration_005
+  enableHooks: true
+  createConfigIfMissing: true  # New option to add
+```
+
+```sh nesl
+#!nesl [@three-char-SHA-256: lac]
+action = "file_write"
+path = "/tmp/t_hooks_integration_005/test.txt"
+content = "Trigger config creation"
+#!end_lac
+```
+
+```json
+{
+  "success": true,
+  "totalBlocks": 1,
+  "executedActions": 1,
+  "results": [
+    {
+      "seq": 1,
+      "blockId": "lac",
+      "action": "file_write",
+      "params": {
+        "path": "test.txt",
+        "content": "Trigger config creation"
+      },
+      "success": true
+    }
+  ],
+  "parseErrors": [],
+  "configCreated": true
+}
+```
+
+Verify:
+- loaf.yml exists with starter content
+- test.txt exists
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/test-data/integration/hooks-integration.md ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
+import type { LoafAction, ParseResult, ParseError } from '../../nesl-action-parser/src/index.js';
+import { parseNeslResponse } from '../../nesl-action-parser/src/index.js';
+import type { FileOpResult } from '../../fs-ops/src/index.js';
+import type { HooksConfig, HookContext, HookResult } from '../../hooks/src/index.js';
+import { HooksManager } from '../../hooks/src/index.js';
+import { load as loadYaml } from 'js-yaml';
+import { readFile, access } from 'fs/promises';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+export interface ExecutionResult {
+  success: boolean;
+  totalBlocks: number;
+  executedActions: number;
+  results: ActionResult[];
+  parseErrors: ParseError[];
+  fatalError?: string;
+  hookErrors?: {
+    before?: string[];
+    after?: string[];
+  };
+  debug?: {
+    parseDebug?: any;
+  };
+}
+
+export interface ActionResult {
+  seq: number;
+  blockId: string;
+  action: string;
+  params: Record<string, any>;
+  success: boolean;
+  error?: string;
+  data?: any;
+}
+
+export interface LoafOptions {
+  repoPath?: string;
+  gitCommit?: boolean;
+  hooks?: HooksConfig;
+  enableHooks?: boolean;
+}
+
+export class Loaf {
+  private options: LoafOptions;
+  private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>> | null = null;
+  private hooksManager: HooksManager | null = null;
+
+  constructor(options: LoafOptions = {}) {
+    this.options = {
+      repoPath: options.repoPath || process.cwd(),
+      gitCommit: options.gitCommit ?? true,
+      hooks: options.hooks,
+      enableHooks: options.enableHooks ?? true
+    };
+  }
+
+  /**
+   * Parse and execute all NESL blocks in LLM output
+   * Executes all valid actions sequentially, collecting both successes and failures
+   */
+  async execute(llmOutput: string): Promise<ExecutionResult> {
+    const hookErrors: ExecutionResult['hookErrors'] = {};
+
+    try {
+      // Initialize hooks if enabled and not already initialized
+      if (this.options.enableHooks && !this.hooksManager) {
+        try {
+          await this.initializeHooks();
+        } catch (error) {
+          return {
+            success: false,
+            totalBlocks: 0,
+            executedActions: 0,
+            results: [],
+            parseErrors: [],
+            fatalError: `Failed to initialize hooks: ${error instanceof Error ? error.message : String(error)}`
+          };
+        }
+      }
+
+      // Run before hooks
+      if (this.hooksManager) {
+        try {
+          const beforeResult = await this.hooksManager.runBefore();
+          if (!beforeResult.success) {
+            // Before hook failure is fatal
+            return {
+              success: false,
+              totalBlocks: 0,
+              executedActions: 0,
+              results: [],
+              parseErrors: [],
+              hookErrors: {
+                before: beforeResult.errors?.map(e => `${e.command}: ${e.error}`) || ['Unknown before hook error']
+              },
+              fatalError: 'Before hooks failed - aborting execution'
+            };
+          }
+        } catch (error) {
+          return {
+            success: false,
+            totalBlocks: 0,
+            executedActions: 0,
+            results: [],
+            parseErrors: [],
+            fatalError: `Before hooks threw unexpected error: ${error instanceof Error ? error.message : String(error)}`
+          };
+        }
+      }
+
+      // Parse NESL blocks
+      const parseResult = await parseNeslResponse(llmOutput);
+
+      // Debug info captured in parseResult.debug
+
+      // Initialize executors if needed
+      if (!this.executors) {
+        try {
+          await this.initializeExecutors();
+        } catch (error) {
+          return {
+            success: false,
+            totalBlocks: parseResult.summary.totalBlocks,
+            executedActions: 0,
+            results: [],
+            parseErrors: parseResult.errors,
+            fatalError: `Failed to initialize executors: ${error instanceof Error ? error.message : String(error)}`
+          };
+        }
+      }
+
+      // Execute each valid action sequentially
+      const results: ActionResult[] = [];
+      let seq = 1;
+
+      for (const action of parseResult.actions) {
+        const result = await this.executeAction(action, seq++);
+        results.push(result);
+      }
+
+      // Calculate execution success (before considering after hooks)
+      const allActionsSucceeded = results.every(r => r.success);
+      const noParseErrors = parseResult.errors.length === 0;
+      const executionSuccess = allActionsSucceeded && noParseErrors;
+
+      // Run after hooks with context
+      if (this.hooksManager) {
+        try {
+          // Build rich context for hooks
+          const modifiedFiles = new Set<string>();
+          const operations: string[] = [];
+          const errors: string[] = [];
+          
+          for (const result of results) {
+            if (result.action.startsWith('file_') && result.params.path) {
+              modifiedFiles.add(result.params.path);
+            }
+            
+            operations.push(`${result.action}${result.success ? '' : ' (failed)'}`);
+            
+            if (!result.success && result.error) {
+              errors.push(`${result.action}: ${result.error}`);
+            }
+          }
+          
+          const afterContext: HookContext = {
+            success: executionSuccess,
+            executedActions: results.length,
+            totalBlocks: parseResult.summary.totalBlocks,
+            modifiedFiles: Array.from(modifiedFiles).join(','),
+            operations: operations.join(','),
+            errors: errors.join('; '),
+            errorCount: errors.length
+          };
+          
+          const afterResult = await this.hooksManager.runAfter(afterContext);
+          if (!afterResult.success) {
+            // After hook failure is non-fatal but recorded
+            hookErrors.after = afterResult.errors?.map(e => `${e.command}: ${e.error}`) || ['Unknown after hook error'];
+          }
+        } catch (error) {
+          // After hook unexpected errors are also non-fatal
+          hookErrors.after = [`After hooks threw unexpected error: ${error instanceof Error ? error.message : String(error)}`];
+        }
+      }
+
+      return {
+        success: executionSuccess && !hookErrors.after, // After hook errors affect overall success
+        totalBlocks: parseResult.summary.totalBlocks,
+        executedActions: results.length,
+        results,
+        parseErrors: parseResult.errors,
+        ...(Object.keys(hookErrors).length > 0 && { hookErrors }),
+        debug: {
+          parseDebug: parseResult.debug
+        }
+      };
+
+    } catch (error) {
+      // Only truly unexpected errors should reach here
+      return {
+        success: false,
+        totalBlocks: 0,
+        executedActions: 0,
+        results: [],
+        parseErrors: [],
+        fatalError: `Unexpected error in execute: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+
+  /**
+   * Initialize hooks manager with configuration
+   * Loads from options or loaf.yml file
+   */
+  private async initializeHooks(): Promise<void> {
+    if (this.options.hooks) {
+      // Use provided configuration
+      // Wrap the hooks in the expected HooksConfig structure
+      const hooksConfig: HooksConfig = {
+        hooks: this.options.hooks,
+        vars: {}
+      };
+      this.hooksManager = new HooksManager(hooksConfig, this.options.repoPath);
+    } else {
+      // Try to load from loaf.yml
+      const loafYmlPath = join(this.options.repoPath!, 'loaf.yml');
+      try {
+        await access(loafYmlPath);
+        this.hooksManager = new HooksManager(undefined, this.options.repoPath);
+        const config = await this.hooksManager.loadConfig(loafYmlPath);
+        this.hooksManager = new HooksManager(config, this.options.repoPath);
+      } catch (error) {
+        // No loaf.yml found, hooks will be disabled
+        // This is not an error - hooks are optional
+      }
+    }
+  }
+
+  /**
+   * Initialize action executors with dynamic imports
+   * Loads routing from unified-design.yaml
+   */
+  private async initializeExecutors(): Promise<void> {
+    this.executors = new Map();
+
+    // Load unified-design.yaml
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const yamlPath = join(__dirname, '../../../../unified-design.yaml');
+    const yamlContent = await readFile(yamlPath, 'utf8');
+    const design = loadYaml(yamlContent) as any;
+
+    // Map executor names to modules
+    const executorModules: Record<string, () => Promise<any>> = {
+      'fs-ops': () => import('../../fs-ops/src/index.js'),
+      'exec': () => import('../../exec/src/index.js')
+    };
+
+    // Load executors on demand
+    const loadedExecutors: Record<string, (action: LoafAction) => Promise<FileOpResult>> = {};
+
+    // Build routing table from YAML
+    for (const [actionName, actionDef] of Object.entries(design.tools)) {
+      const executor = (actionDef as any).executor || this.inferExecutor(actionName, actionDef);
+
+      if (!executor) {
+        console.warn(`No executor defined for action: ${actionName}`);
+        continue;
+      }
+
+      // Load executor module if not already loaded
+      if (!loadedExecutors[executor]) {
+        if (executorModules[executor]) {
+          const module = await executorModules[executor]();
+          // Handle different export names
+          if (executor === 'exec') {
+            loadedExecutors[executor] = module.executeCommand;
+          } else {
+            loadedExecutors[executor] = module.executeFileOperation || module.executeOperation;
+          }
+        } else {
+          // Skip planned but unimplemented executors silently
+          if (!['context', 'git'].includes(executor)) {
+            console.warn(`Unknown executor: ${executor}`);
+          }
+          continue;
+        }
+      }
+
+      this.executors.set(actionName, loadedExecutors[executor]);
+    }
+  }
+
+  /**
+   * Infer executor from action name/type when not explicitly defined
+   * Temporary fallback until all YAML entries have executor field
+   */
+  private inferExecutor(actionName: string, actionDef: any): string | null {
+    // File/dir operations go to fs-ops
+    if (actionName.startsWith('file_') || actionName.startsWith('files_') ||
+      actionName.startsWith('dir_') || ['ls', 'grep', 'glob'].includes(actionName)) {
+      return 'fs-ops';
+    }
+
+    // Exec operations
+    if (actionName === 'exec') {
+      return 'exec';
+    }
+
+    // Context operations (future)
+    if (actionName.startsWith('context_')) {
+      return 'context';
+    }
+
+    // Git operations (future)
+    if (actionName.startsWith('git_') || actionName === 'undo') {
+      return 'git';
+    }
+
+    return null;
+  }
+
+  /**
+   * Execute a single action and format the result
+   * Never throws - all errors returned in ActionResult
+   */
+  private async executeAction(action: LoafAction, seq: number): Promise<ActionResult> {
+    const executor = this.executors?.get(action.action);
+
+    if (!executor) {
+      return {
+        seq,
+        blockId: action.metadata.blockId,
+        action: action.action,
+        params: action.parameters,
+        success: false,
+        error: `Unknown action: ${action.action}`
+      };
+    }
+
+    try {
+      // Add default cwd for exec actions if not specified
+      const enhancedAction = action.action === 'exec' && !action.parameters.cwd
+        ? { ...action, parameters: { ...action.parameters, cwd: this.options.repoPath } }
+        : action;
+
+      const result = await executor(enhancedAction);
+
+      return {
+        seq,
+        blockId: action.metadata.blockId,
+        action: action.action,
+        params: action.parameters,
+        success: result.success,
+        ...(result.error && { error: result.error }),
+        ...(result.data !== undefined && { data: result.data }),
+        // Include exec-specific fields at top level
+        ...(action.action === 'exec' && {
+          data: {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exit_code: result.exit_code
+          }
+        })
+      };
+
+    } catch (error) {
+      // Executors should never throw, but handle just in case
+      return {
+        seq,
+        blockId: action.metadata.blockId,
+        action: action.action,
+        params: action.parameters,
+        success: false,
+        error: `Unexpected executor error: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
+import { promisify } from 'util';
+import { exec } from 'child_process';
+import { readFile } from 'fs/promises';
+import { interpolateCommand } from './interpolateCommand.js';
+import { validateCommand } from './validateCommand.js';
+import { formatHookResult } from './formatHookResult.js';
+import { parseYamlConfig } from './parseYamlConfig.js';
+import { validateConfig } from './validateConfig.js';
+import type { CommandResult } from './types.js';
+
+// Public types
+export interface HooksConfig {
+  version?: number;
+  hooks?: {
+    before?: Command[];
+    after?: Command[];
+  };
+  vars?: Record<string, string>;
+}
+
+export interface Command {
+  run: string;
+  continueOnError?: boolean;
+  timeout?: number;
+  cwd?: string;
+}
+
+export interface HookContext {
+  [key: string]: string | number | boolean;
+}
+
+export interface HookResult {
+  success: boolean;
+  executed: number;
+  errors?: Array<{
+    command: string;
+    error: string;
+  }>;
+}
+
+// Promisified exec
+const execAsync = promisify(exec);
+
+// Main class
+export class HooksManager {
+  private config: HooksConfig;
+  private repoPath: string;
+
+  constructor(config?: HooksConfig, repoPath?: string) {
+    this.config = config || { hooks: {}, vars: {} };
+    this.repoPath = repoPath || process.cwd();
+  }
+
+  async runBefore(context?: HookContext): Promise<HookResult> {
+    const commands = this.config.hooks?.before || [];
+    return this.runCommands(commands, context);
+  }
+
+  async runAfter(context?: HookContext): Promise<HookResult> {
+    const commands = this.config.hooks?.after || [];
+    return this.runCommands(commands, context);
+  }
+
+  async loadConfig(path: string): Promise<HooksConfig> {
+    try {
+      const content = await readFile(path, 'utf8');
+      const config = parseYamlConfig(content);
+      
+      const validation = validateConfig(config);
+      if (!validation.valid) {
+        throw new Error(`Invalid config: ${validation.error}`);
+      }
+      
+      this.config = config;
+      return config;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`Config file not found: ${path}`);
+      }
+      throw error;
+    }
+  }
+
+  private async runCommands(commands: Command[], context?: HookContext): Promise<HookResult> {
+    const results: CommandResult[] = [];
+    
+    for (const cmd of commands) {
+      try {
+        // Interpolate variables
+        const interpolatedCmd = interpolateCommand(cmd, this.config.vars || {}, context);
+        
+        // Validate command
+        const validation = validateCommand(interpolatedCmd);
+        if (!validation.valid) {
+          const result: CommandResult = {
+            command: cmd.run,
+            success: false,
+            error: validation.error || 'Invalid command'
+          };
+          results.push(result);
+          
+          if (!cmd.continueOnError) {
+            break;
+          }
+          continue;
+        }
+        
+        // Execute command
+        const result = await this.executeCommand(interpolatedCmd);
+        results.push({
+          command: cmd.run,
+          ...result
+        });
+        
+        if (!result.success && !cmd.continueOnError) {
+          break;
+        }
+      } catch (error: any) {
+        const result: CommandResult = {
+          command: cmd.run,
+          success: false,
+          error: error.message
+        };
+        results.push(result);
+        
+        if (!cmd.continueOnError) {
+          break;
+        }
+      }
+    }
+    
+    return formatHookResult(results);
+  }
+
+  private async executeCommand(cmd: Command): Promise<Omit<CommandResult, 'command'>> {
+    const timeout = cmd.timeout || 30000;
+    const options = {
+      cwd: cmd.cwd || this.repoPath,
+      timeout,
+      encoding: 'utf8' as const
+    };
+    
+    try {
+      const { stdout, stderr } = await execAsync(cmd.run, options);
+      return {
+        success: true,
+        stdout: stdout || '',
+        stderr: stderr || ''
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        stdout: error.stdout || '',
+        stderr: error.stderr || ''
+      };
+    }
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
 === END ===

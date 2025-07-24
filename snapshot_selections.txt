@@ -1,166 +1,49 @@
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md ===
-# Loaf Architecture
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/createStarterConfig.ts ===
+import { writeFile } from 'fs/promises';
+import { join } from 'path';
 
+const STARTER_LOAF_YML = `# Loaf configuration
+version: 1
 
-IMPORTANT TOOL TESTING NOTES:
+hooks:
+  # Uncomment and modify these examples as needed
+  
+  # before:
+  #   - run: git stash --include-untracked
+  #     continueOnError: false
+  
+  # after:
+  #   - run: git add -A
+  #   - run: git commit -m "\${COMMIT_MSG}"
+  #     continueOnError: false
+  #   - run: git push
+  #     continueOnError: true
+  #     timeout: 10000  # 10s for slow networks
 
-- for test specific loaf tools, each tool must get its own test case file, for easy visibility into which tools have been implemented and tested yet.
-- aka `proj/comp/fs-ops/test-data/integration/file_delete.cases.md`
+# Variables available in commands
+vars:
+  COMMIT_MSG: "AI-assisted changes"
+  # Add more variables as needed
+`;
 
-## Core Design Decisions
-
-### Transaction Model
-- **No automatic rollback** - All operations commit, including failures
-- **Failures are data** - LLM needs failure feedback for next steps
-- **Forward-only progress** - Cheaper than regenerating responses
-- **Manual rollback only** - Human-initiated via git commands
-- **Boundary**: One git commit per `execute()` call
-- **API**: Explicit transaction management (details TBD)
-
-### NESL Processing Pipeline
-1. NESL parser (external npm) → AST
-2. AST → Action objects (nesl-ast-converter)
-3. Actions → Execution → Results
-
-### NESL AST Structure
-```typescript
-interface NeslParseResult {
-  blocks: NeslBlock[]
-  errors: NeslError[]
-}
-
-interface NeslBlock {
-  id: string           // 3-char SHA-256
-  properties: {
-    action: string     // Maps to tool name (e.g., "file_write")
-    [key: string]: any // Tool-specific parameters
+/**
+ * Creates a starter loaf.yml file if it doesn't exist
+ * @returns true if file was created, false if already exists
+ */
+export async function createStarterConfig(repoPath: string): Promise<boolean> {
+  const configPath = join(repoPath, 'loaf.yml');
+  
+  try {
+    await writeFile(configPath, STARTER_LOAF_YML, { flag: 'wx' });
+    return true;
+  } catch (error: any) {
+    if (error.code === 'EEXIST') {
+      return false;
+    }
+    throw error;
   }
-  startLine: number
-  endLine: number
 }
-
-interface NeslError {
-  code: string         // e.g., "DUPLICATE_KEY"
-  line: number
-  column: number
-  length: number
-  blockId: string
-  content: string
-  context: string
-  message: string
-}
-```
-
-### Error Propagation Strategy
-- **Parser errors**: Skip blocks with parser errors, execute valid blocks only
-- **Validation errors**: Skip invalid actions, execute valid ones
-- **Execution errors**: Continue with remaining actions
-- **Result**: Complete execution log with successes and failures
-
-### Action Mapping
-- NESL `action` property maps directly to tool names from unified-design.yaml
-- Use canonical names: `file_write`, `exec`, etc.
-
-### Context Management
-- **V1**: Simple `Set<string>` of file paths
-- **Storage**: In-memory only, no persistence across sessions
-- **V2 Future**: Sub-file references (lines, functions, sections)
-
-### Hooks Integration
-- **Loading**: Lazy-load HooksManager on first execute() if hooks enabled
-- **Config Source**: Options > loaf.yml > no hooks
-- **Before Hook Failure**: Fatal - prevents NESL execution
-- **After Hook Failure**: Non-fatal - recorded but doesn't affect overall success
-- **Context Passing**: Minimal context to after hooks (success, counts)
-- **Variable Interpolation**: Handled by hooks component, not orch
-
-### Execution Model
-- **Synchronous**: All operations block until complete
-- **CWD Management**: Session-based working directory
-  - Default: Repository root
-  - Each exec can override with `cwd` parameter
-  - CWD persists within session, not across transactions
-- **Results Format**: Flat array with sequence numbers
-```typescript
-interface ActionResult {
-  seq: number          // Execution order
-  blockId: string      // NESL block ID
-  action: string       // Action type
-  params: any          // Input parameters
-  success: boolean
-  error?: string       // Error message if failed
-  data?: any           // Action-specific output (stdout, content, etc.)
-}
-```
-
-### Security Model (V1)
-- **None**: Full filesystem access
-- **No validation**: Any path allowed
-- **No sandboxing**: Direct execution
-- **V2 Future**: Path allowlisting per unified-design.yaml. FOR THIS REASON all fs stuff should immediately be implemented using our fs wrapper functions so this whitelisting/blacklisting is easy to implment in the future.
-
-## Component Structure
-```
-loaf/
-├── proj/
-│   ├── comp/
-│   │   ├── nesl-ast-converter/  # AST → Actions
-│   │   ├── fs-ops/              # File/directory operations
-│   │   ├── exec/                # Command execution
-│   │   ├── git-tx/              # Git transaction management
-│   │   └── context/             # Working set management
-│   └── doc/
-│       ├── API.md               # Main orchestrator API
-│       ├── ARCH.md              # This document
-│       └── ABSTRACT.md          # Project overview
-```
-
-## Implementation Priorities
-1. `nesl-ast-converter` - Cannot test without this
-2. `fs-ops` - Core functionality
-3. `exec` - Command execution
-4. `git-tx` - Transaction wrapper
-5. `context` - Working set (may be simple enough to inline)
-
-## Open Questions
-
-### Critical
-1. **NESL parser package**: `nesl-js` from `github:nesl-lang/nesl-js`
-   - Import: `const { parseNESL } = require('nesl-js')`
-2. **Transaction API**: Single `execute()` method processes NESL block array
-
-### Design
-1. **Parser error handling**: Execute blocks with parser errors or skip?
-2. **Git conflict handling**: How to handle conflicts during manual rollback?
-3. **Concurrent access**: Multiple loaf instances on same repo?
-4. **Partial failure behavior**: Continue executing after first failure or abort?
-
-### Future
-1. **Context references**: Syntax for line ranges and functions
-2. **Execution isolation**: Container/VM strategy for V2
-3. **Streaming results**: Return results as actions complete or batch at end?
-
-## Design Rationale
-
-### Why No Automatic Rollback
-Traditional transaction systems rollback on failure to maintain consistency. Loaf explicitly rejects this because:
-1. **LLM responses are expensive** - Regenerating costs time and money
-2. **Partial success is informative** - LLM learns from failures
-3. **Git preserves history** - Can always manually revert
-4. **Forward progress over perfection** - Incremental improvement model
-
-### Why Synchronous Execution
-1. **Deterministic results** - LLM needs to know exact outcomes
-2. **Sequential dependencies** - Later actions may depend on earlier ones
-3. **Simpler implementation** - No async state management
-4. **Git compatibility** - Git operations are inherently synchronous
-
-### Why In-Memory Context
-1. **Session isolation** - Each LLM conversation is independent
-2. **No persistence complexity** - No file format versioning
-3. **Git is the source of truth** - Files on disk matter, not context
-4. **Quick reset** - New session = clean slate
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md ===
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/createStarterConfig.ts ===
 
 === START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
 import type { LoafAction, ParseResult, ParseError } from '../../nesl-action-parser/src/index.js';
@@ -312,10 +195,31 @@ export class Loaf {
       // Run after hooks with context
       if (this.hooksManager) {
         try {
+          // Build rich context for hooks
+          const modifiedFiles = new Set<string>();
+          const operations: string[] = [];
+          const errors: string[] = [];
+          
+          for (const result of results) {
+            if (result.action.startsWith('file_') && result.params.path) {
+              modifiedFiles.add(result.params.path);
+            }
+            
+            operations.push(`${result.action}${result.success ? '' : ' (failed)'}`);
+            
+            if (!result.success && result.error) {
+              errors.push(`${result.action}: ${result.error}`);
+            }
+          }
+          
           const afterContext: HookContext = {
             success: executionSuccess,
             executedActions: results.length,
-            totalBlocks: parseResult.summary.totalBlocks
+            totalBlocks: parseResult.summary.totalBlocks,
+            modifiedFiles: Array.from(modifiedFiles).join(','),
+            operations: operations.join(','),
+            errors: errors.join('; '),
+            errorCount: errors.length
           };
           
           const afterResult = await this.hooksManager.runAfter(afterContext);
@@ -361,15 +265,15 @@ export class Loaf {
   private async initializeHooks(): Promise<void> {
     if (this.options.hooks) {
       // Use provided configuration
-      this.hooksManager = new HooksManager(this.options.hooks);
+      this.hooksManager = new HooksManager(this.options.hooks, this.options.repoPath);
     } else {
       // Try to load from loaf.yml
       const loafYmlPath = join(this.options.repoPath!, 'loaf.yml');
       try {
         await access(loafYmlPath);
-        this.hooksManager = new HooksManager();
+        this.hooksManager = new HooksManager(undefined, this.options.repoPath);
         const config = await this.hooksManager.loadConfig(loafYmlPath);
-        this.hooksManager = new HooksManager(config);
+        this.hooksManager = new HooksManager(config, this.options.repoPath);
       } catch (error) {
         // No loaf.yml found, hooks will be disabled
         // This is not an error - hooks are optional
@@ -520,221 +424,592 @@ export class Loaf {
 }
 === END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
 
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/TODO.md ===
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts ===
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync, existsSync, mkdirSync, rmSync } from 'fs';
+import { join } from 'path';
+import { Loaf } from '../../src/index.js';
+import { parseTestFile } from '../utils/parseTestFile.js';
 
-**Recommendation:**
-- Use lodash.template for consistency and battle-tested implementation
-- Your spec (escape, defaults, no nesting) aligns with lodash capabilities
-- Default pattern: `${VAR}` with optional `${VAR:-default}`
+describe('Hooks Integration', () => {
+  const testDataPath = join(import.meta.dirname, '../../test-data/integration/hooks-integration.md');
+  const testCases = parseTestFile(testDataPath);
 
-## Test Strategy for Hooks
+  beforeEach(() => {
+    // Ensure temp directories exist
+    if (!existsSync('/tmp')) {
+      throw new Error('Tests require /tmp directory');
+    }
+  });
 
-Since hooks execute external commands, test with:
+  afterEach(() => {
+    // Cleanup test directories
+    const dirs = [
+      '/tmp/t_hooks_integration_001',
+      '/tmp/t_hooks_integration_002',
+      '/tmp/t_hooks_integration_003',
+      '/tmp/t_hooks_integration_004',
+      '/tmp/t_hooks_integration_005'
+    ];
+    
+    for (const dir of dirs) {
+      if (existsSync(dir)) {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  });
 
-1. **Mock commands** - Create test shell scripts:
+  for (const testCase of testCases) {
+    test(testCase.name, async () => {
+      // Setup
+      if (testCase.config?.repoPath && !existsSync(testCase.config.repoPath)) {
+        mkdirSync(testCase.config.repoPath, { recursive: true });
+      }
+
+      // Create Loaf instance with test config
+      const loaf = new Loaf(testCase.config);
+
+      // Execute
+      const result = await loaf.execute(testCase.input);
+      
+      // Debug output
+      console.log(`\n=== Test: ${testCase.name} ===`);
+      console.log('Result:', JSON.stringify(result, null, 2));
+
+      // Basic assertions
+      expect(result.success).toBe(testCase.expected.success);
+      expect(result.totalBlocks).toBe(testCase.expected.totalBlocks);
+      expect(result.executedActions).toBe(testCase.expected.executedActions);
+
+      // Verify hook errors if expected
+      if (testCase.expected.hookErrors) {
+        expect(result.hookErrors).toBeDefined();
+        if (testCase.expected.hookErrors.before) {
+          expect(result.hookErrors?.before).toBeDefined();
+          expect(result.hookErrors?.before?.length).toBeGreaterThan(0);
+        }
+      }
+
+      // Verify fatal error if expected
+      if (testCase.expected.fatalError) {
+        expect(result.fatalError).toBe(testCase.expected.fatalError);
+      }
+
+      // Test-specific verifications
+      if (testCase.verify) {
+        const repoPath = testCase.config.repoPath;
+        
+        switch (testCase.name) {
+          case '001-basic-hooks-execution': {
+            const tracePath = join(repoPath, 'hook-trace.txt');
+            expect(existsSync(tracePath)).toBe(true);
+            const trace = readFileSync(tracePath, 'utf8');
+            expect(trace).toContain('BEFORE_RAN');
+            expect(trace).toContain('AFTER_RAN');
+            expect(trace).toContain('FILES_MODIFIED=');
+            break;
+          }
+          
+          case '002-hooks-with-failures': {
+            const resultPath = join(repoPath, 'result.txt');
+            expect(existsSync(resultPath)).toBe(true);
+            const content = readFileSync(resultPath, 'utf8');
+            expect(content).toContain('SUCCESS=false');
+            expect(content).toContain('ERRORS=1');
+            break;
+          }
+          
+          case '003-before-hook-failure-aborts': {
+            const testPath = join(repoPath, 'test.txt');
+            const afterPath = join(repoPath, 'after.txt');
+            expect(existsSync(testPath)).toBe(false);
+            expect(existsSync(afterPath)).toBe(false);
+            break;
+          }
+          
+          case '004-context-variables-in-hooks': {
+            const summaryPath = join(repoPath, 'summary.txt');
+            expect(existsSync(summaryPath)).toBe(true);
+            const summary = readFileSync(summaryPath, 'utf8');
+            expect(summary).toContain('Total blocks: 2');
+            expect(summary).toContain('Executed: 2');
+            expect(summary).toContain('Operations: file_write,file_read');
+            break;
+          }
+          
+          case '005-loaf-yml-auto-creation': {
+            const configPath = join(repoPath, 'loaf.yml');
+            expect(existsSync(configPath)).toBe(true);
+            const testPath = join(repoPath, 'test.txt');
+            expect(existsSync(testPath)).toBe(true);
+            break;
+          }
+        }
+      }
+    });
+  }
+});
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/utils/parseTestFile.ts ===
+import { readFileSync } from 'fs';
+import { load as loadYaml } from 'js-yaml';
+
+export interface TestCase {
+  name: string;
+  config: any;
+  input: string;
+  expected: any;
+  verify?: boolean;
+}
+
+/**
+ * Parse test cases from markdown file containing:
+ * - Test name as ## heading
+ * - YAML config block
+ * - NESL input block
+ * - JSON expected output block
+ */
+export function parseTestFile(filepath: string): TestCase[] {
+  const content = readFileSync(filepath, 'utf8');
+  const testCases: TestCase[] = [];
+  
+  // Split by test case headers (## XXX-name)
+  const sections = content.split(/^## /m).slice(1); // Skip content before first ##
+  
+  for (const section of sections) {
+    const lines = section.split('\n');
+    const name = lines[0].trim();
+    
+    let config: any = {};
+    let input = '';
+    let expected: any = {};
+    let verify = false;
+    
+    let currentBlock = '';
+    let blockType = '';
+    let inCodeBlock = false;
+    
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Check for code block markers
+      if (line.startsWith('```')) {
+        if (!inCodeBlock) {
+          inCodeBlock = true;
+          blockType = line.slice(3).trim();
+          currentBlock = '';
+        } else {
+          // End of code block - process it
+          inCodeBlock = false;
+          
+          if (blockType === 'yaml') {
+            config = loadYaml(currentBlock);
+          } else if (blockType === 'sh nesl') {
+            input = currentBlock;
+          } else if (blockType === 'json') {
+            try {
+              expected = JSON.parse(currentBlock);
+            } catch (e) {
+              console.error(`Failed to parse JSON for test case "${name}":`);
+              console.error(`JSON content:\n${currentBlock}`);
+              console.error(`Error: ${e}`);
+              throw e;
+            }
+          }
+          
+          blockType = '';
+        }
+      } else if (inCodeBlock) {
+        currentBlock += line + '\n';
+      } else if (line.startsWith('Verify:')) {
+        verify = true;
+      }
+    }
+    
+    // Trim trailing newline from input
+    input = input.trimEnd();
+    
+    testCases.push({
+      name,
+      config,
+      input,
+      expected,
+      verify
+    });
+  }
+  
+  return testCases;
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/utils/parseTestFile.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/test-data/integration/hooks-integration.md ===
+# Hooks Integration Test Cases
+
+## 001-basic-hooks-execution
+
+Tests that before and after hooks execute correctly around NESL operations.
+
+```yaml
+config:
+  repoPath: /tmp/t_hooks_integration_001
+  hooks:
+    hooks:
+      before:
+        - run: echo 'BEFORE_RAN' > hook-trace.txt
+      after:
+        - run: echo 'AFTER_RAN' >> hook-trace.txt
+        - run: echo 'FILES_MODIFIED=${modifiedFiles}' >> hook-trace.txt
+```
+
+```sh nesl
+#!nesl [@three-char-SHA-256: bhe]
+action = "file_write"
+path = "/tmp/t_hooks_integration_001/test.txt"
+content = "Hello from NESL"
+#!end_bhe
+```
+
 ```json
 {
-  "name": "basic git flow",
-  "config": {
-    "hooks": {
-      "before": [
-        { "run": "echo 'before' > /tmp/t_hooks/before.txt" }
-      ],
-      "after": [
-        { "run": "echo 'after' > /tmp/t_hooks/after.txt" }
-      ]
+  "success": true,
+  "totalBlocks": 1,
+  "executedActions": 1,
+  "results": [
+    {
+      "seq": 1,
+      "blockId": "bhe",
+      "action": "file_write",
+      "params": {
+        "path": "test.txt",
+        "content": "Hello from NESL"
+      },
+      "success": true
     }
-  },
-  "verify": {
-    "beforeFile": "/tmp/t_hooks/before.txt",
-    "afterFile": "/tmp/t_hooks/after.txt"
-  }
+  ],
+  "parseErrors": []
 }
 ```
 
+Verify:
+- hook-trace.txt contains "BEFORE_RAN\nAFTER_RAN\nFILES_MODIFIED=test.txt"
 
-3. **Test cases:**
-- Variable interpolation edge cases
-- Command failures with/without continueOnError
-- Timeout behavior
-- Missing variables
-- Shell injection attempts
+## 002-hooks-with-failures
 
-**Missing piece:** How does loaf integrate hooks? Need to update loaf's API.md to show hooks dependency and call points.
-
-
-## Shell Detection Strategy
-
-Node.js `exec()` accepts a shell option. Default behavior:
-- Unix: `/bin/sh`
-- Windows: `process.env.ComSpec` (typically `cmd.exe`)
-
-## Recommended Implementation
+Tests hook behavior when NESL operations fail.
 
 ```yaml
-# loaf.yaml
-shell: auto  # auto | cmd | powershell | bash | sh | /path/to/shell
+config:
+  repoPath: /tmp/t_hooks_integration_002
+  hooks:
+    hooks:
+      before:
+        - run: mkdir -p nested/dir
+      after:
+        - run: echo 'SUCCESS=${success}' > result.txt
+        - run: echo 'ERRORS=${errorCount}' >> result.txt
 ```
 
-
-Clean Integration: orch would depend on hooks, not implement it:
-
-```ts
-// In orch/src/index.ts
-const hooks = new HooksManager(options.hooks);
-await hooks.runBefore();
-// ... existing execute logic ...
-await hooks.runAfter({ success, changeCount });
+```sh nesl
+#!nesl [@three-char-SHA-256: hwf]
+action = "file_write"
+path = "/invalid\0path/test.txt"
+content = "This will fail"
+#!end_hwf
 ```
 
-https://claude.ai/chat/d344370c-aaf5-46ec-9786-93cc208f7613
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/TODO.md ===
+```json
+{
+  "success": false,
+  "totalBlocks": 1,
+  "executedActions": 1,
+  "results": [
+    {
+      "seq": 1,
+      "blockId": "hwf",
+      "action": "file_write",
+      "params": {
+        "path": "/invalid\\0path/test.txt",
+        "content": "This will fail"
+      },
+      "success": false,
+      "error": "Invalid path: contains null character"
+    }
+  ],
+  "parseErrors": []
+}
+```
 
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/ABSTRACT.md ===
-# Hooks Component
+Verify:
+- result.txt contains "SUCCESS=false\nERRORS=1"
 
-## Purpose (60 words)
-Execute user-defined shell commands before and after NESL block execution. Enables VCS integration through configurable lifecycle hooks with variable interpolation, timeout control, and error handling. Loads configuration from loaf.yml files.
+## 003-before-hook-failure-aborts
 
-## Overview (300 words)
-The hooks component provides lifecycle management for loaf operations, allowing users to define shell commands that run before and after NESL execution. This enables seamless version control integration without hardcoding VCS-specific logic into loaf itself.
-
-Key features:
-- Before/after hook execution with configurable commands
-- Variable interpolation performed before shell execution for security
-- Per-command timeout and error handling options
-- YAML configuration loading from project and user directories
-- Shell command escaping for safety
-
-The component executes commands sequentially, failing fast on errors unless explicitly configured to continue. Variables are interpolated before passing to the shell, preventing injection attacks. Commands execute in the repository root by default with optional cwd override.
-
-## Requirements (EARS format)
-- The system SHALL execute before hooks prior to NESL execution
-- The system SHALL execute after hooks following NESL execution
-- The system SHALL interpolate variables before shell execution
-- The system SHALL fail fast on command errors unless continueOnError is set
-- The system SHALL respect per-command timeout values
-- The system SHALL create starter loaf.yml if not exist
-- The system SHALL load configuration from loaf.yml
-
-# example
-
-Example `loaf.yml`:
-
-# Loaf configuration
+Tests that before hook failures prevent NESL execution.
 
 ```yaml
-version: 1  # For future compatibility
-
-hooks:
-  before:
-    - run: git stash --include-untracked
-      
-  after:
-    - run: git add -A
-    - run: git commit -m "${COMMIT_MSG}"
-    - run: git push
-      continueOnError: true
-      timeout: 10000  # 10s for slow networks
-
-# Variables available in commands
-vars:
-  COMMIT_MSG: "AI-assisted changes"
+config:
+  repoPath: /tmp/t_hooks_integration_003
+  hooks:
+    hooks:
+      before:
+        - run: "false"  # Always fails
+      after:
+        - run: echo 'SHOULD_NOT_RUN' > after.txt
 ```
 
-https://claude.ai/chat/d344370c-aaf5-46ec-9786-93cc208f7613
-https://claude.ai/chat/4bdbd3d3-d3e6-4249-bce8-d19f882b2fba
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/ABSTRACT.md ===
+```sh nesl
+#!nesl [@three-char-SHA-256: bhf]
+action = "file_write"
+path = "/tmp/t_hooks_integration_003/test.txt"
+content = "Should not be written"
+#!end_bhf
+```
 
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/API.md ===
-# Component: hooks
+```json
+{
+  "success": false,
+  "totalBlocks": 0,
+  "executedActions": 0,
+  "results": [],
+  "parseErrors": [],
+  "hookErrors": {
+    "before": ["false: Command failed with exit code 1"]
+  },
+  "fatalError": "Before hooks failed - aborting execution"
+}
+```
 
-## Component Type
-standard
+Verify:
+- test.txt does not exist
+- after.txt does not exist
 
-## Dependencies
+## 004-context-variables-in-hooks
+
+Tests that context variables are properly passed to hooks.
 
 ```yaml
-dependencies:
-  external/js-yaml:
-    functions: [load]
+config:
+  repoPath: /tmp/t_hooks_integration_004
+  hooks:
+    hooks:
+      after:
+        - run: |
+            cat > summary.txt << EOF
+            Total blocks: ${totalBlocks}
+            Executed: ${executedActions}
+            Operations: ${operations}
+            EOF
+    vars:
+      CUSTOM_VAR: "test123"
+```
+
+```sh nesl
+#!nesl [@three-char-SHA-256: cv1]
+action = "file_write"
+path = "/tmp/t_hooks_integration_004/file1.txt"
+content = "First file"
+#!end_cv1
+
+#!nesl [@three-char-SHA-256: cv2]
+action = "file_read"
+path = "/tmp/t_hooks_integration_004/file1.txt"
+#!end_cv2
+```
+
+```json
+{
+  "success": true,
+  "totalBlocks": 2,
+  "executedActions": 2,
+  "results": [
+    {
+      "seq": 1,
+      "blockId": "cv1",
+      "action": "file_write",
+      "params": {
+        "path": "file1.txt",
+        "content": "First file"
+      },
+      "success": true
+    },
+    {
+      "seq": 2,
+      "blockId": "cv2",
+      "action": "file_read",
+      "params": {
+        "path": "file1.txt"
+      },
+      "success": true,
+      "data": "First file"
+    }
+  ],
+  "parseErrors": []
+}
+```
+
+Verify:
+- summary.txt contains:
+  ```
+  Total blocks: 2
+  Executed: 2
+  Operations: file_write,file_read
+  ```
+
+## 005-loaf-yml-auto-creation
+
+Tests that loaf.yml is created when missing and hooks are enabled.
+
+```yaml
+config:
+  repoPath: /tmp/t_hooks_integration_005
+  enableHooks: true
+  createConfigIfMissing: true  # New option to add
+```
+
+```sh nesl
+#!nesl [@three-char-SHA-256: lac]
+action = "file_write"
+path = "/tmp/t_hooks_integration_005/test.txt"
+content = "Trigger config creation"
+#!end_lac
+```
+
+```json
+{
+  "success": true,
+  "totalBlocks": 1,
+  "executedActions": 1,
+  "results": [
+    {
+      "seq": 1,
+      "blockId": "lac",
+      "action": "file_write",
+      "params": {
+        "path": "test.txt",
+        "content": "Trigger config creation"
+      },
+      "success": true
+    }
+  ],
+  "parseErrors": [],
+  "configCreated": true
+}
+```
+
+Verify:
+- loaf.yml exists with starter content
+- test.txt exists
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/test-data/integration/hooks-integration.md ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/detectShell.ts ===
+/**
+ * Detects the appropriate shell for the current platform
+ * Used to provide better defaults for hooks on different OSes
+ */
+export function detectShell(): { shell: string; isWindows: boolean } {
+  const isWindows = process.platform === 'win32';
   
-  external/shell-escape:
-    functions: [escape]
+  if (isWindows) {
+    // On Windows, prefer PowerShell over cmd if available
+    // PowerShell is more capable and handles Unix-style commands better
+    const shell = process.env.ComSpec || 'cmd.exe';
+    
+    // Could enhance this to detect PowerShell availability
+    // For now, we'll document that Windows users should use PowerShell-compatible commands
+    return { shell, isWindows };
+  }
   
-  node:child_process:
-    functions: [exec]
+  // Unix-like systems (Linux, macOS)
+  const shell = process.env.SHELL || '/bin/sh';
+  return { shell, isWindows };
+}
+
+/**
+ * Provides platform-appropriate example commands
+ */
+export function getPlatformExamples(): { 
+  gitAdd: string; 
+  gitCommit: string; 
+  gitPush: string;
+  gitStash: string;
+} {
+  const { isWindows } = detectShell();
   
-  node:util:
-    functions: [promisify]
-```
+  // Git commands are the same across platforms when using Git Bash or PowerShell
+  // These work on all platforms with Git installed
+  return {
+    gitAdd: 'git add -A',
+    gitCommit: 'git commit -m "${COMMIT_MSG}"',
+    gitPush: 'git push',
+    gitStash: 'git stash --include-untracked'
+  };
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/detectShell.ts ===
 
-## Exports
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/formatHookResult.ts ===
+import type { CommandResult, HookResult } from './types.js';
 
-```yaml
-exports:
-  classes:
-    HooksManager:
-      constructor: [config?: HooksConfig]
-      methods: [runBefore, runAfter, loadConfig]
-  types:
-    - HooksConfig
-    - Command
-    - HookContext
-    - HookResult
-```
+/**
+ * Formats array of command results into a HookResult
+ * Overall success is true only if all commands succeeded
+ * Collects errors from failed commands
+ */
+export function formatHookResult(results: CommandResult[]): HookResult {
+  const errors: Array<{ command: string; error: string }> = [];
+  let allSuccess = true;
 
-### HooksManager (class)
-- **Purpose**: Manages lifecycle hooks for command execution
-- **Constructor**: `new HooksManager(config?: HooksConfig)`
-- **State**: Loaded configuration and variable context
+  for (const result of results) {
+    if (!result.success) {
+      allSuccess = false;
+      errors.push({
+        command: result.command,
+        error: result.error || 'Command failed'
+      });
+    }
+  }
 
-### runBefore
-- **Signature**: `async runBefore(context?: HookContext): Promise<HookResult>`
-- **Purpose**: Execute all before hooks sequentially
-- **Throws**: First command failure unless continueOnError
+  return {
+    success: allSuccess,
+    executed: results.length,
+    ...(errors.length > 0 && { errors })
+  };
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/formatHookResult.ts ===
 
-### runAfter  
-- **Signature**: `async runAfter(context?: HookContext): Promise<HookResult>`
-- **Purpose**: Execute all after hooks sequentially
-- **Throws**: First command failure unless continueOnError
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
+import { promisify } from 'util';
+import { exec } from 'child_process';
+import { readFile } from 'fs/promises';
+import { interpolateCommand } from './interpolateCommand.js';
+import { validateCommand } from './validateCommand.js';
+import { formatHookResult } from './formatHookResult.js';
+import { parseYamlConfig } from './parseYamlConfig.js';
+import { validateConfig } from './validateConfig.js';
+import type { CommandResult } from './types.js';
 
-### loadConfig
-- **Signature**: `async loadConfig(path: string): Promise<HooksConfig>`
-- **Purpose**: Load hooks configuration from YAML file
-- **Throws**: `Error` on invalid YAML or missing file
-
-### HooksConfig (type)
-```typescript
-interface HooksConfig {
+// Public types
+export interface HooksConfig {
+  version?: number;
   hooks?: {
     before?: Command[];
     after?: Command[];
   };
   vars?: Record<string, string>;
 }
-```
 
-### Command (type)
-```typescript
-interface Command {
+export interface Command {
   run: string;
   continueOnError?: boolean;
   timeout?: number;
   cwd?: string;
 }
-```
 
-### HookContext (type)
-```typescript
-interface HookContext {
+export interface HookContext {
   [key: string]: string | number | boolean;
 }
-```
 
-### HookResult (type)
-```typescript
-interface HookResult {
+export interface HookResult {
   success: boolean;
   executed: number;
   errors?: Array<{
@@ -742,221 +1017,450 @@ interface HookResult {
     error: string;
   }>;
 }
-```
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/API.md ===
 
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/ARCH.md ===
-# Hooks Architecture
+// Promisified exec
+const execAsync = promisify(exec);
 
-## Design Decisions
+// Main class
+export class HooksManager {
+  private config: HooksConfig;
+  private repoPath: string;
 
-### Variable Interpolation
-- **Decision**: Interpolate before shell execution
-- **Rationale**: Prevents shell injection, predictable behavior
-- **Implementation**: Simple string replacement of ${VAR} patterns
+  constructor(config?: HooksConfig, repoPath?: string) {
+    this.config = config || { hooks: {}, vars: {} };
+    this.repoPath = repoPath || process.cwd();
+  }
 
-### Error Handling
-- **Decision**: Fail fast by default
-- **Rationale**: Predictable, safe default for VCS operations
-- **Override**: Per-command `continueOnError` flag
+  async runBefore(context?: HookContext): Promise<HookResult> {
+    const commands = this.config.hooks?.before || [];
+    return this.runCommands(commands, context);
+  }
 
-### Configuration Loading
-1. Check `loaf.yml` in repository root
+  async runAfter(context?: HookContext): Promise<HookResult> {
+    const commands = this.config.hooks?.after || [];
+    return this.runCommands(commands, context);
+  }
 
-### Command Execution
-- Internal shell execution using child_process.exec
-- Default cwd is repository root
-- Sequential execution (no parallelism)
-- Promisified exec for async/await pattern
+  async loadConfig(path: string): Promise<HooksConfig> {
+    try {
+      const content = await readFile(path, 'utf8');
+      const config = parseYamlConfig(content);
+      
+      const validation = validateConfig(config);
+      if (!validation.valid) {
+        throw new Error(`Invalid config: ${validation.error}`);
+      }
+      
+      this.config = config;
+      return config;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`Config file not found: ${path}`);
+      }
+      throw error;
+    }
+  }
 
-### Timeout Handling
-- Per-command timeout configuration
-- Kill entire process tree on timeout
-- Default: 30 seconds
+  private async runCommands(commands: Command[], context?: HookContext): Promise<HookResult> {
+    const results: CommandResult[] = [];
+    
+    for (const cmd of commands) {
+      try {
+        // Interpolate variables
+        const interpolatedCmd = interpolateCommand(cmd, this.config.vars || {}, context);
+        
+        // Validate command
+        const validation = validateCommand(interpolatedCmd);
+        if (!validation.valid) {
+          const result: CommandResult = {
+            command: cmd.run,
+            success: false,
+            error: validation.error || 'Invalid command'
+          };
+          results.push(result);
+          
+          if (!cmd.continueOnError) {
+            break;
+          }
+          continue;
+        }
+        
+        // Execute command
+        const result = await this.executeCommand(interpolatedCmd);
+        results.push({
+          command: cmd.run,
+          ...result
+        });
+        
+        if (!result.success && !cmd.continueOnError) {
+          break;
+        }
+      } catch (error: any) {
+        const result: CommandResult = {
+          command: cmd.run,
+          success: false,
+          error: error.message
+        };
+        results.push(result);
+        
+        if (!cmd.continueOnError) {
+          break;
+        }
+      }
+    }
+    
+    return formatHookResult(results);
+  }
 
-## Security Considerations
-- Shell escaping via shell-escape library
-- No dynamic command construction
-- Variables interpolated before shell sees them
-
-## Internal Implementation
-
-### Shell Execution
-- Direct use of `child_process.exec` with promisify wrapper
-- Custom timeout implementation (exec doesn't support natively)
-- Process killing on timeout using process.kill()
-- Error standardization for consistent handling
-
-### Process Management
-```javascript
-// Timeout approach
-const timeoutPromise = new Promise((_, reject) => 
-  setTimeout(() => reject(new Error('Command timeout')), timeout)
-);
-Promise.race([execPromise, timeoutPromise]);
-```
-
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/ARCH.md ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/API.md ===
-# Component: loaf
-
-## Component Type
-standard
-
-## Dependencies
-
-```yaml
-dependencies:
-  proj/comp/nesl-action-parser:  # [IMPLEMENTED]
-    functions: [parseNeslResponse]
-    types: [ParseResult, LoafAction, ParseError, ValidationResult, TransformError]
-  
-  proj/comp/fs-ops:              # [PARTIALLY IMPLEMENTED]
-    functions: [executeFileOperation]
-    types: [FileOpResult]
-    classes:
-      FileOpError:
-        extends: Error
-  
-  proj/comp/exec:                # [PLANNED]
-    functions: [executeCommand]
-    types: [ExecResult]
-  
-  proj/comp/hooks:               # [PLANNED]
-    classes:
-      HooksManager:
-        constructor: [config?: HooksConfig]
-        methods: [runBefore, runAfter, loadConfig]
-    types: [HooksConfig, HookContext, HookResult]
-  
-  proj/comp/git-tx:              # [PLANNED - v1.2]
-    functions: [ensureCleanRepo, commitChanges]
-    types: [GitError]
-  
-  proj/comp/context:             # [PLANNED]
-    functions: [addPath, removePath, listPaths, clearContext]
-    types: [ContextError]
-  
-  external/nesl-js:
-    functions: [parseNesl]
-    types: [Block, ParseResult, ParseError]
-```
-
-## Exports
-
-```yaml
-exports:
-  classes:
-    Loaf:
-      constructor: [options?: LoafOptions]
-      methods: [execute]
-  types: 
-    - ExecutionResult
-    - ActionResult  
-    - LoafOptions
-  # Note: ParseError is re-exported from nesl-action-parser
-```
-
-### Loaf (class)
-- **Purpose**: Main orchestrator executing NESL blocks from LLM output
-- **Constructor**: `new Loaf(options?: LoafOptions)`
-- **State**: Maintains working directory and context set across execute() calls
-
-### execute
-- **Signature**: `async execute(llmOutput: string): Promise<ExecutionResult>`
-- **Purpose**: Parse and execute all NESL blocks in LLM output, commit results
-- **Process**: 
-  1. Run before hooks (if enabled)
-  2. Parse NESL blocks
-  3. Convert to actions
-  4. Execute all valid actions
-  5. Run after hooks with execution context (if enabled)
-  6. (v1.2: Git commit with summary)
-- **Throws**: Never - all errors captured in ExecutionResult
-- **Hook Context**: After hooks receive: `{ success: boolean, executedActions: number, totalBlocks: number }`
-- **Test-data**: `test-data/execute/basic-operations.md` [IMPLEMENTED]
-
-### ExecutionResult (type)
-```typescript
-interface ExecutionResult {
-  success: boolean              // False if any action failed or hooks failed
-  totalBlocks: number          // Count of NESL blocks found
-  executedActions: number      // Count of actions attempted
-  results: ActionResult[]      // All execution results
-  parseErrors: ParseError[]    // NESL parsing errors
-  fatalError?: string         // System failure (v1.2: will include git errors)
-  hookErrors?: {              // Hook execution errors
-    before?: string[]         // Before hook errors
-    after?: string[]          // After hook errors
+  private async executeCommand(cmd: Command): Promise<Omit<CommandResult, 'command'>> {
+    const timeout = cmd.timeout || 30000;
+    const options = {
+      cwd: cmd.cwd || this.repoPath,
+      timeout,
+      encoding: 'utf8' as const
+    };
+    
+    try {
+      const { stdout, stderr } = await execAsync(cmd.run, options);
+      return {
+        success: true,
+        stdout: stdout || '',
+        stderr: stderr || ''
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        stdout: error.stdout || '',
+        stderr: error.stderr || ''
+      };
+    }
   }
 }
-```
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
 
-### ActionResult (type)
-```typescript
-interface ActionResult {
-  seq: number                  // Execution order
-  blockId: string             // NESL block ID
-  action: string              // Action type
-  params: Record<string, any> // Input parameters
-  success: boolean
-  error?: string              // Error message if failed
-  data?: any                  // Action-specific output
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/interpolateCommand.ts ===
+import type { Command, HookContext } from './types.js';
+
+/**
+ * Interpolates variables in a command's run string
+ * Replaces ${VAR} patterns with values from vars and context
+ * Context values override vars values
+ * @throws Error if a variable is not found
+ */
+export function interpolateCommand(
+  cmd: Command,
+  vars: Record<string, string>,
+  context?: HookContext
+): Command {
+  // Create a new command object to avoid mutation
+  const interpolated = { ...cmd };
+  
+  // Build combined variable map (context overrides vars)
+  const allVars: Record<string, string> = { ...vars };
+  if (context) {
+    // Convert context values to strings
+    for (const [key, value] of Object.entries(context)) {
+      allVars[key] = String(value);
+    }
+  }
+
+  // Replace variables in the run string
+  let runString = cmd.run;
+  
+  // First, handle escaped dollar signs
+  runString = runString.replace(/\\\$/g, '\x00ESCAPED_DOLLAR\x00');
+  
+  // Find and replace all ${VAR} patterns
+  const varPattern = /\$\{([^}]+)\}/g;
+  const matches = runString.match(varPattern);
+  
+  if (matches) {
+    for (const match of matches) {
+      const varName = match.slice(2, -1); // Remove ${ and }
+      
+      if (!(varName in allVars)) {
+        throw new Error(`Variable not found: ${varName}`);
+      }
+      
+      runString = runString.replace(match, allVars[varName]);
+    }
+  }
+  
+  // Restore escaped dollar signs
+  runString = runString.replace(/\x00ESCAPED_DOLLAR\x00/g, '$');
+  
+  interpolated.run = runString;
+  return interpolated;
 }
-```
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/interpolateCommand.ts ===
 
-### ParseError (type)
-```typescript
-interface ParseError {
-  blockId?: string            // If error is block-specific
-  error: NeslError            // From parser
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/parseYamlConfig.ts ===
+import { load } from 'js-yaml';
+import type { HooksConfig } from './types.js';
+
+/**
+ * Parses YAML content into HooksConfig object
+ * @throws Error if YAML is invalid
+ */
+export function parseYamlConfig(content: string): HooksConfig {
+  try {
+    // Empty string returns null from js-yaml
+    if (content.trim() === '') {
+      return null as any;
+    }
+
+    const parsed = load(content);
+    
+    // js-yaml returns undefined for empty documents sometimes
+    if (parsed === undefined) {
+      return null as any;
+    }
+
+    return parsed as HooksConfig;
+  } catch (error: any) {
+    throw new Error(`Invalid YAML: ${error.message}`);
+  }
 }
-```
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/parseYamlConfig.ts ===
 
-### LoafOptions (type)
-```typescript
-interface LoafOptions {
-  repoPath?: string           // Default: process.cwd()
-  gitCommit?: boolean         // v1.2 feature - Default: true
-  hooks?: HooksConfig         // Hook configuration (if not provided, loads from loaf.yml)
-  enableHooks?: boolean       // Enable hook execution - Default: true
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/types.ts ===
+// Re-export public types from index
+export type { HooksConfig, Command, HookContext, HookResult } from './index.js';
+
+// Internal types
+export interface CommandResult {
+  command: string;
+  success: boolean;
+  error?: string;
+  stdout?: string;
+  stderr?: string;
 }
+
+export interface ValidationResult {
+  valid: boolean;
+  error?: string;
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/types.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/validateCommand.ts ===
+import type { Command, ValidationResult } from './types.js';
+
+/**
+ * Validates a command object has required properties and valid values
+ * Checks: run is non-empty string, timeout is positive if present
+ */
+export function validateCommand(cmd: Command): ValidationResult {
+  // Check if cmd is an object
+  if (!cmd || typeof cmd !== 'object') {
+    return {
+      valid: false,
+      error: 'Command must be an object'
+    };
+  }
+
+  // Check for run property
+  if (!('run' in cmd)) {
+    return {
+      valid: false,
+      error: 'Command must have \'run\' property'
+    };
+  }
+
+  // Check run is a string
+  if (typeof cmd.run !== 'string') {
+    return {
+      valid: false,
+      error: 'Command run must be a string'
+    };
+  }
+
+  // Check run is not empty (after trimming)
+  if (cmd.run.trim() === '') {
+    return {
+      valid: false,
+      error: 'Command run string cannot be empty'
+    };
+  }
+
+  // Check timeout if present
+  if ('timeout' in cmd && cmd.timeout !== undefined) {
+    if (typeof cmd.timeout !== 'number' || cmd.timeout <= 0) {
+      return {
+        valid: false,
+        error: 'Timeout must be positive'
+      };
+    }
+  }
+
+  return { valid: true };
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/validateCommand.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/validateConfig.ts ===
+import type { HooksConfig, ValidationResult } from './types.js';
+
+/**
+ * Validates a parsed config object has correct structure
+ * Checks hooks is object, before/after are arrays, commands are objects
+ * vars is object with string values
+ */
+export function validateConfig(config: any): ValidationResult {
+  // Empty config is valid
+  if (!config || typeof config !== 'object') {
+    return {
+      valid: false,
+      error: 'Config must be an object'
+    };
+  }
+
+  // Check hooks if present
+  if ('hooks' in config && config.hooks !== undefined) {
+    if (typeof config.hooks !== 'object' || config.hooks === null) {
+      return {
+        valid: false,
+        error: 'hooks must be an object'
+      };
+    }
+
+    // Check before hooks
+    if ('before' in config.hooks && config.hooks.before !== undefined) {
+      if (!Array.isArray(config.hooks.before)) {
+        return {
+          valid: false,
+          error: 'hooks.before must be an array'
+        };
+      }
+
+      // Check each before command
+      for (const cmd of config.hooks.before) {
+        if (typeof cmd !== 'object' || cmd === null) {
+          return {
+            valid: false,
+            error: 'hook commands must be objects'
+          };
+        }
+      }
+    }
+
+    // Check after hooks
+    if ('after' in config.hooks && config.hooks.after !== undefined) {
+      if (!Array.isArray(config.hooks.after)) {
+        return {
+          valid: false,
+          error: 'hooks.after must be an array'
+        };
+      }
+
+      // Check each after command
+      for (const cmd of config.hooks.after) {
+        if (typeof cmd !== 'object' || cmd === null) {
+          return {
+            valid: false,
+            error: 'hook commands must be objects'
+          };
+        }
+      }
+    }
+  }
+
+  // Check vars if present
+  if ('vars' in config && config.vars !== undefined) {
+    if (typeof config.vars !== 'object' || config.vars === null || Array.isArray(config.vars)) {
+      return {
+        valid: false,
+        error: 'vars must be an object'
+      };
+    }
+
+    // Check all var values are strings
+    for (const value of Object.values(config.vars)) {
+      if (typeof value !== 'string') {
+        return {
+          valid: false,
+          error: 'var values must be strings'
+        };
+      }
+    }
+  }
+
+  return { valid: true };
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/validateConfig.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/use-listener/instruct.md ===
+
+Prioritize substance, clarity, and depth. Challenge all my proposals, designs, and conclusions as hypotheses to be tested. Sharpen follow-up questions for precision, surfacing hidden assumptions, trade offs, and failure modes early. Default to terse, logically structured, information-dense responses unless detailed exploration is required. Skip unnecessary praise unless grounded in evidence. Explicitly acknowledge uncertainty when applicable. Always propose at least one alternative framing. Accept critical debate as normal and preferred. Treat all factual claims as provisional unless cited or clearly justified. Cite when appropriate. Acknowledge when claims rely on inference or incomplete information. Favor accuracy over sounding certain.
+
+check anything online when it feels relevant.  good to compare our thoughts/assumptions with what other people are actually doing and thinking
+
+when asked to share your thoughts (like if user says "wdyt"), then walk it out and talk it out gradually, incrementally, slowly, and thoughtfully.  challenge me so we can succeed overall
+
+dont fall into the trap of equating "implementation" with "low-level".  implementation decisions can be high-level when they affect the system's fundamental behavior
+
+IMPORTANT EDIT INSTRUCTIONS NOTE:
+
+- always use full absolute file paths for edit instructions
+
+
+
+
+
+use the following syntax to execute operations on the user's computer:
+
+# NESL Tool API Reference
+
+## Syntax
+```sh
+#!nesl [@three-char-SHA-256: q8r]
+action = "tool_name"
+param1 = <<'EOT_q8r'
+value line 1
+value line 2
+EOT_q8r
+param2 = "value"
+#!end_q8r
 ```
 
-## Internal Architecture
+Constraints:
+- Block ID must be exactly 3 characters
+- Always use heredocs (`<<'EOT_[id]'...EOT_[id]`) for file contents
+- All paths must be absolute
 
-### Execution Flow
-```
-execute(llmOutput)
-  → loadHooks() if needed
-  → runBefore() → HookResult
-  → parseNESL(llmOutput) → NeslParseResult
-  → for each valid block:
-    → convertToActions(block) → LoafAction[]
-    → for each action:
-      → route to appropriate executor
-      → capture result
-  → runAfter(context) → HookResult
-  → commitChanges(results)
-  → return ExecutionResult
-```
+## Tools
 
-### Action Routing
-- file_* → fs-ops
-- dir_* → fs-ops
-- exec → exec
-- context_* → context
-- ls, grep, glob → fs-ops (read operations)
+### `file_write`
+Write content to file (creates or overwrites)  
+- `path`
+- `content`
 
-### Error Handling
-- Hook errors (before): Fatal, abort with fatalError
-- Parser errors: Skip block, record error
-- Conversion errors: Skip action, record error
-- Execution errors: Continue execution, record error
-- Hook errors (after): Record but don't affect success if actions succeeded
-- Git errors: Fatal, abort with fatalError
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/API.md ===
+### `file_replace_text`
+Replace exactly one text occurrence  
+- `path`
+- `old_text`
+- `new_text` 
+
+### `file_replace_lines`
+Replace the given line(s) with the supplied `new_content` string
+- `path`
+- `lines` eg "3" or a range like "2-13"
+- `new_content` 
+
+### `file_read`
+Read file contents  
+- `path` 
+
+### `file_read_numbered`
+Read file with line numbers  
+- `path`
+
+### `files_read`
+Read multiple files  
+- `paths`
+
+
+if you need to run any bash commands, share them with me separately and i will manually run them myself for you
+=== END FILE: /Users/stuart/repos/loaf/use-listener/instruct.md ===
 
 === START FILE: /Users/stuart/repos/loaf/xd5_ref.md ===
 # XD5 LLM Quick Reference
@@ -1178,106 +1682,54 @@ consider using EARS somehow for specs/reqs: EARS: The Easy Approach to Requireme
 for dependency blocks in docs api, do not include external dependencies!!
 === END FILE: /Users/stuart/repos/loaf/xd5_ref.md ===
 
-=== START FILE: /Users/stuart/repos/loaf/replacer/replacer_llm_instructions.md ===
-coding style guide:  TDD.  self documenting code.  every api  function name should make it super obvious who is doing what and why
-
-WOL = "words or less, please"
-
-keep the docs as lean
-
-refactor code to make it smaller whenever possible.  DRY.
-
-IMPORTANT:  do not generate edit instructions unless specifically asked to.  not necessary when just discussing and brainstorming
-
-- all code functions and classes or large (10 lines of code or more?) need code comments to cocnisely and lcearly describe what they're doing and why and how
-
-IMPORTANT: 
-
-whenever you generate new code, use the following format.  dont just generate a standalone artifact.  when generating one or multiple new files, use the OVERWRITE pattern shown below 
-
-For each specific edit that needs to happen, list a brief explanation for the change, list file name, and then explicitly make it clear what the target text is that need to be changed, and then the replacement text is that will replace it. Each of those blocks of text or code need to be explicit verbatim character by character Perfect matches for the intended text.  be sure to put the filenames and expalanations on their own lines for easy human reading even in output format.  like paragraph breaks before and after so thye're on their own lines even when not in code blocks.  use this format below exactly. note that the OVERWRITE style block can be used to create new files and its parent dirs.
-
-make the search find text or code blocks as small as possible to still be unique identifiers for what needs to be changed in the underlying files 
-
-for the file path, use as much of the path that you know of.  should be as specific as you can accurately be.  
-
-make sure that file paths include the current main project dir
-
-<<<EXPLANATION>>>
-
-this is why the change should happen
-
-<<<FILE>>>
-
-package/replacer_demo_src/main.py
-
-<<<SEARCH>>>
-def old_function():
-   x = 1
-   y = 2
-   return x + y
-<<<REPLACE>>>
-def new_function():
-   result = 3
-   return result
-<<<END>>>
-
-
-
-
-<<<EXPLANATION>>>
-
-this is why this change should happen
-
-<<<FILE>>>
-july/coding/bobstuff/react/config/settings.json
-<<<OVERWRITE>>>
+=== START FILE: /Users/stuart/repos/loaf/package.json ===
 {
-   "debug": true,
-   "port": 8080
+  "name": "loaf",
+  "version": "0.1.0",
+  "description": "LLM Output Actuation Framework",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "dev": "tsx watch proj/src/index.ts",
+    "start": "tsx proj/src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:run": "vitest run",
+    "test:debug": "vitest run --reporter=verbose --no-coverage",
+    "test:handles": "node --expose-gc ./node_modules/.bin/vitest run --reporter=verbose --no-coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint proj/**/*.ts",
+    "lint:fix": "eslint proj/**/*.ts --fix",
+    "listener": "tsx use-listener/test-listener-live.ts"
+  },
+  "dependencies": {
+    "clipboardy": "^4.0.0",
+    "js-yaml": "^4.1.0",
+    "marked": "^12.0.0",
+    "nesl-js": "github:nesl-lang/nesl-js"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.19.9",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.0",
+    "typescript": "^5.8.3",
+    "vitest": "^1.2.0"
+  },
+  "keywords": [
+    "llm",
+    "actions",
+    "filesystem",
+    "nesl"
+  ],
+  "author": "",
+  "license": "MIT"
 }
-<<<END>>>
-
-NOTE: if you want to remove a section of code, your replace block must contain a blank line and a space:
-
-
-<<<EXPLANATION>>>
-
-remove the search code
-
-<<<FILE>>>
-
-package/replacer_demo_src/main.py
-
-<<<SEARCH>>>
-def old_function():
-   x = 1
-   y = 2
-   return x + y
-<<<REPLACE>>>
- 
-<<<END>>>
-
-see how the REPLACE block can never be totally empty. must contain blank line and whitespace (space(s)) too
-
-IMPORTANT:  each edit item must list its associated FILE.  each SEARCH/REPLACE or OVERWRITE etc block must be immediately preceeded by the respective file 
-
-$$$$$$$$$$$$$
-
-Prioritize substance, clarity, and depth. Challenge all my proposals, designs, and conclusions as hypotheses to be tested. Sharpen follow-up questions for precision, surfacing hidden assumptions, trade offs, and failure modes early. Default to terse, logically structured, information-dense responses unless detailed exploration is required. Skip unnecessary praise unless grounded in evidence. Explicitly acknowledge uncertainty when applicable. Always propose at least one alternative framing. Accept critical debate as normal and preferred. Treat all factual claims as provisional unless cited or clearly justified. Cite when appropriate. Acknowledge when claims rely on inference or incomplete information. Favor accuracy over sounding certain.
-
-check anything online when it feels relevant.  good to compare our thoughts/assumptions with what other people are actually doing and thinking
-
-when asked to share your thoughts (like if user says "wdyt"), then walk it out and talk it out gradually, incrementally, slowly, and thoughtfully.  challenge me so we can succeed overall
-
-dont fall into the trap of equating "implementation" with "low-level".  implementation decisions can be high-level when they affect the system's fundamental behavior
-
-IMPORTANT EDIT INSTRUCTIONS NOTE:
-
-- always use full absolute file paths for edit instructions
-
-- to delete a file, share bash commands with the user in your response.  do not use edit instructions to delete a file
-
-
-=== END FILE: /Users/stuart/repos/loaf/replacer/replacer_llm_instructions.md ===
+=== END FILE: /Users/stuart/repos/loaf/package.json ===
 

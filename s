@@ -21,20 +21,7 @@ done
 # /Users/stuart/repos/loaf/proj/comp/orch/doc/API.md
 
 file_list=$(cat <<'EOF'
-
-/Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md
-/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/doc/TODO.md
-
-
-/Users/stuart/repos/loaf/proj/comp/hooks/doc/ABSTRACT.md
-/Users/stuart/repos/loaf/proj/comp/hooks/doc/API.md
-/Users/stuart/repos/loaf/proj/comp/hooks/doc/ARCH.md
-/Users/stuart/repos/loaf/proj/comp/orch/doc/API.md
-
-
-/Users/stuart/repos/loaf/xd5_ref.md
-/Users/stuart/repos/loaf/replacer/replacer_llm_instructions.md
+proj/comp/orch/src/createStarterConfig.ts proj/comp/orch/src/index.ts proj/comp/orch/test/integration/hooks-integration.test.ts proj/comp/orch/test/utils/parseTestFile.ts proj/comp/orch/test-data/integration/hooks-integration.md proj/comp/hooks/src/detectShell.ts proj/comp/hooks/src/formatHookResult.ts proj/comp/hooks/src/index.ts proj/comp/hooks/src/interpolateCommand.ts proj/comp/hooks/src/parseYamlConfig.ts proj/comp/hooks/src/types.ts proj/comp/hooks/src/validateCommand.ts proj/comp/hooks/src/validateConfig.ts use-listener/instruct.md xd5_ref.md package.json
 
 
 

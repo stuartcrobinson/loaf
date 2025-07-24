@@ -49,20 +49,24 @@ Replace exactly one text occurrence
 - `old_text`
 - `new_text` 
 
-### `file_replace_lines`
-Replace the given line(s) with the supplied `new_content` string
-- `path`
-- `lines` eg "3" or a range like "2-13"
-- `new_content` 
-
 ### `file_read`
 Read file contents  
 - `path` 
 
-### `file_read_numbered`
-Read file with line numbers  
-- `path`
-
 ### `files_read`
 Read multiple files  
 - `paths`
+
+ex:
+
+```sh nesl
+#!nesl [@three-char-SHA-256: rm4]
+action = "files_read"
+paths = <<'EOT_rm4'
+/tmp/file1.txt
+/tmp/file2.txt
+EOT_rm4
+#!end_rm4
+```
+
+if you need to run any bash commands, share them with me separately and i will manually run them myself for you

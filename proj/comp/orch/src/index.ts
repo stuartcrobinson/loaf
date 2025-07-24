@@ -147,10 +147,31 @@ export class Loaf {
       // Run after hooks with context
       if (this.hooksManager) {
         try {
+          // Build rich context for hooks
+          const modifiedFiles = new Set<string>();
+          const operations: string[] = [];
+          const errors: string[] = [];
+          
+          for (const result of results) {
+            if (result.action.startsWith('file_') && result.params.path) {
+              modifiedFiles.add(result.params.path);
+            }
+            
+            operations.push(`${result.action}${result.success ? '' : ' (failed)'}`);
+            
+            if (!result.success && result.error) {
+              errors.push(`${result.action}: ${result.error}`);
+            }
+          }
+          
           const afterContext: HookContext = {
             success: executionSuccess,
             executedActions: results.length,
-            totalBlocks: parseResult.summary.totalBlocks
+            totalBlocks: parseResult.summary.totalBlocks,
+            modifiedFiles: Array.from(modifiedFiles).join(','),
+            operations: operations.join(','),
+            errors: errors.join('; '),
+            errorCount: errors.length
           };
           
           const afterResult = await this.hooksManager.runAfter(afterContext);
@@ -196,15 +217,20 @@ export class Loaf {
   private async initializeHooks(): Promise<void> {
     if (this.options.hooks) {
       // Use provided configuration
-      this.hooksManager = new HooksManager(this.options.hooks);
+      // Wrap the hooks in the expected HooksConfig structure
+      const hooksConfig: HooksConfig = {
+        hooks: this.options.hooks,
+        vars: {}
+      };
+      this.hooksManager = new HooksManager(hooksConfig, this.options.repoPath);
     } else {
       // Try to load from loaf.yml
       const loafYmlPath = join(this.options.repoPath!, 'loaf.yml');
       try {
         await access(loafYmlPath);
-        this.hooksManager = new HooksManager();
+        this.hooksManager = new HooksManager(undefined, this.options.repoPath);
         const config = await this.hooksManager.loadConfig(loafYmlPath);
-        this.hooksManager = new HooksManager(config);
+        this.hooksManager = new HooksManager(config, this.options.repoPath);
       } catch (error) {
         // No loaf.yml found, hooks will be disabled
         // This is not an error - hooks are optional
