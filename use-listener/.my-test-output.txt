@@ -1,29 +1,11 @@
 === LOAF RESULTS ===
-fg1 ✅ file_write /Users/stuart/repos/loaf/proj/comp/orch/src/types.ts
-fg2 ✅ file_write /Users/stuart/repos/loaf/proj/comp/fs-guard/src/types.ts
-fg3 ✅ file_write /Users/stuart/repos/loaf/proj/comp/fs-guard/src/FsGuard.ts
-fg4 ✅ file_write /Users/stuart/repos/loaf/proj/comp/fs-guard/src/index.ts
-fg5 ✅ file_write /Users/stuart/repos/loaf/proj/comp/orch/src/loadConfig.ts
-fg6 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-fg7 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-fg8 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-fg9 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-fg10 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-fg11 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-fg12 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-fg13 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-fg14 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-fg15 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-fg16 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-fg17 ✅ file_write /Users/stuart/repos/loaf/proj/comp/exec/src/ExecExecutor.ts
-fg18 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/exec/src/index.ts
-fg19 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-fg20 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-fg21 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-fg22 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-fg23 ✅ file_write /Users/stuart/repos/loaf/proj/comp/fs-guard/package.json
-fg24 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/createStarterConfig.ts
-fg25 ✅ file_write /Users/stuart/repos/loaf/proj/comp/fs-guard/tsconfig.json
+wa1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_action_result.test.ts
+wa2 ✅ file_replace_all_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_action_result.test.ts
+wc1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_result_contents.test.ts
+wc2 ✅ file_replace_all_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_result_contents.test.ts
+wr1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_replace_result_contents.test.ts
+wr2 ✅ file_replace_all_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_replace_result_contents.test.ts
+tc1 ✅ file_write /Users/stuart/repos/loaf/tsconfig.base.json
 === END ===
 
 === OUTPUTS ===

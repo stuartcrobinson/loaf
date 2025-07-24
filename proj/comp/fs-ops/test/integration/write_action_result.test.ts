@@ -3,7 +3,17 @@ import { readFileSync, rmSync, existsSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import { marked } from 'marked';
 import { parseNeslResponse } from '../../../nesl-action-parser/src/index.js';
-import { executeFileOperation } from '../../src/index.js';
+import { FsOpsExecutor } from '../../src/index.js';
+import type { FsGuard } from '../../../fs-guard/src/index.js';
+
+// Mock FsGuard that allows all operations
+const mockGuard: FsGuard = {
+  async check(action) {
+    return { allowed: true };
+  }
+};
+
+const executor = new FsOpsExecutor(mockGuard);
 
 // Find all .cases.md files recursively
 function findTestFiles(dir: string, files: string[] = []): string[] {
@@ -105,7 +115,7 @@ describe('write_action_result tests', () => {
 
             // Execute each write action
             for (const action of writeResult.actions) {
-              const result = await executeFileOperation(action);
+              const result = await executor.execute(action);
               // // Debug: log execution result
               // if (testName.includes('move-to-existing-file')) {
               //   console.log(`DEBUG: Executed ${action.action} path=${action.parameters?.path} success=${result.success}`);
@@ -129,7 +139,7 @@ describe('write_action_result tests', () => {
 
           let testResult;
           for (const action of actionResult.actions) {
-            testResult = await executeFileOperation(action);
+            testResult = await executor.execute(action);
             // Track paths for cleanup
             if (action.parameters?.path) {
               const testDirMatch = action.parameters.path.match(/\/tmp\/t_[^\/]+/);

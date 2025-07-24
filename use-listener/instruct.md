@@ -78,3 +78,7 @@ paths = <<'EOT_rm4'
 EOT_rm4
 #!end_rm4
 ```
+
+---
+
+to modify any files on the user's machine, respond with nesl syntax

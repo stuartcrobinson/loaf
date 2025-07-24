@@ -3,7 +3,17 @@ import { readFileSync, rmSync, existsSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 import { marked } from 'marked';
 import { parseNeslResponse } from '../../../nesl-action-parser/src/index.js';
-import { executeFileOperation } from '../../src/index.js';
+import { FsOpsExecutor } from '../../src/index.js';
+import type { FsGuard } from '../../../fs-guard/src/index.js';
+
+// Mock FsGuard that allows all operations
+const mockGuard: FsGuard = {
+  async check(action) {
+    return { allowed: true };
+  }
+};
+
+const executor = new FsOpsExecutor(mockGuard);
 
 // Find all .cases.md files recursively
 function findTestFiles(dir: string, files: string[] = []): string[] {
@@ -88,7 +98,7 @@ describe('write_replace_result_contents tests', () => {
                 }
 
                 for (const action of writeResult.actions) {
-                  await executeFileOperation(action);
+                  await executor.execute(action);
                   // Track target path
                   if (action.parameters?.path) {
                     targetPath = action.parameters.path;
@@ -106,7 +116,7 @@ describe('write_replace_result_contents tests', () => {
 
               let testResult;
               for (const action of replaceResult.actions) {
-                testResult = await executeFileOperation(action);
+                testResult = await executor.execute(action);
                 // Track target path if not already set
                 if (!targetPath && action.parameters?.path) {
                   targetPath = action.parameters.path;
@@ -159,7 +169,7 @@ describe('write_replace_result_contents tests', () => {
             }
 
             for (const action of writeResult.actions) {
-              await executeFileOperation(action);
+              await executor.execute(action);
               // Track target path
               if (action.parameters?.path) {
                 targetPath = action.parameters.path;
@@ -177,7 +187,7 @@ describe('write_replace_result_contents tests', () => {
 
           let testResult;
           for (const action of replaceResult.actions) {
-            testResult = await executeFileOperation(action);
+            testResult = await executor.execute(action);
             // Track target path if not already set
             if (!targetPath && action.parameters?.path) {
               targetPath = action.parameters.path;
