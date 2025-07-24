@@ -1,12 +1,236 @@
 === LOAF RESULTS ===
-wa1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_action_result.test.ts
-wa2 ✅ file_replace_all_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_action_result.test.ts
-wc1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_result_contents.test.ts
-wc2 ✅ file_replace_all_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_result_contents.test.ts
-wr1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_replace_result_contents.test.ts
-wr2 ✅ file_replace_all_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/integration/write_replace_result_contents.test.ts
-tc1 ✅ file_write /Users/stuart/repos/loaf/tsconfig.base.json
+rd1 ✅ file_read /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
+rd2 ✅ file_read /Users/stuart/repos/loaf/proj/comp/orch/src/types.ts
+rd3 ✅ file_read /Users/stuart/repos/loaf/proj/comp/orch/src/loadConfig.ts
 === END ===
 
 === OUTPUTS ===
+
+[rd1] file_read:
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
+import { promisify } from 'util';
+import { exec } from 'child_process';
+import { readFile } from 'fs/promises';
+import { interpolateCommand } from './interpolateCommand.js';
+import { validateCommand } from './validateCommand.js';
+import { formatHookResult } from './formatHookResult.js';
+import { parseYamlConfig } from './parseYamlConfig.js';
+import { validateConfig } from './validateConfig.js';
+import type { CommandResult } from './types.js';
+
+// Public types
+export interface HooksConfig {
+  version?: number;
+  hooks?: {
+    before?: Command[];
+    after?: Command[];
+  };
+  vars?: Record<string, string>;
+}
+
+export interface Command {
+  run: string;
+  continueOnError?: boolean;
+  timeout?: number;
+  cwd?: string;
+}
+
+export interface HookContext {
+  [key: string]: string | number | boolean;
+}
+
+export interface HookResult {
+  success: boolean;
+  executed: number;
+  errors?: Array<{
+    command: string;
+    error: string;
+  }>;
+}
+
+// Promisified exec
+const execAsync = promisify(exec);
+
+// Main class
+export class HooksManager {
+  private config: HooksConfig;
+  private repoPath: string;
+
+  constructor(config?: HooksConfig, repoPath?: string) {
+    this.config = config || { hooks: {}, vars: {} };
+    this.repoPath = repoPath || process.cwd();
+  }
+
+  async runBefore(context?: HookContext): Promise<HookResult> {
+    const commands = this.config.hooks?.before || [];
+    return this.runCommands(commands, context);
+  }
+
+  async runAfter(context?: HookContext): Promise<HookResult> {
+    const commands = this.config.hooks?.after || [];
+    return this.runCommands(commands, context);
+  }
+
+  async loadAndSetConfig(path: string): Promise<HooksConfig> {
+    try {
+      const content = await readFile(path, 'utf8');
+      const config = parseYamlConfig(content);
+
+      const validation = validateConfig(config);
+      if (!validation.valid) {
+        throw new Error(`Invalid config: ${validation.error}`);
+      }
+
+      this.config = config;
+      return config;
+    } catch (error: any) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`Config file not found: ${path}`);
+      }
+      throw error;
+    }
+  }
+
+  private async runCommands(commands: Command[], context?: HookContext): Promise<HookResult> {
+    const results: CommandResult[] = [];
+
+    for (const cmd of commands) {
+      try {
+        // Interpolate variables
+        const interpolatedCmd = interpolateCommand(cmd, this.config.vars || {}, context);
+
+        // Validate command
+        const validation = validateCommand(interpolatedCmd);
+        if (!validation.valid) {
+          const result: CommandResult = {
+            command: cmd.run,
+            success: false,
+            error: validation.error || 'Invalid command'
+          };
+          results.push(result);
+
+          if (!cmd.continueOnError) {
+            break;
+          }
+          continue;
+        }
+
+        // Execute command
+        const result = await this.executeCommand(interpolatedCmd);
+
+        results.push({
+          command: cmd.run,
+          ...result
+        });
+
+        if (!result.success && !cmd.continueOnError) {
+          break;
+        }
+      } catch (error: any) {
+        const result: CommandResult = {
+          command: cmd.run,
+          success: false,
+          error: error.message
+        };
+        results.push(result);
+
+        if (!cmd.continueOnError) {
+          break;
+        }
+      }
+    }
+
+    return formatHookResult(results);
+  }
+
+  private async executeCommand(cmd: Command): Promise<Omit<CommandResult, 'command'>> {
+    const timeout = cmd.timeout || 30000;
+    const options = {
+      cwd: cmd.cwd || this.repoPath,
+      timeout,
+      encoding: 'utf8' as const,
+      shell: true  // Ensure shell interpretation for redirects
+    };
+
+    try {
+      const { stdout, stderr } = await execAsync(cmd.run, options);
+      return {
+        success: true,
+        stdout: stdout || '',
+        stderr: stderr || ''
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        stdout: error.stdout || '',
+        stderr: error.stderr || ''
+      };
+    }
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
+
+[rd2] file_read:
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/types.ts ===
+import type { HooksConfig } from '../../hooks/src/index.js';
+
+export interface LoafConfig {
+  version: number;
+  hooks?: HooksConfig;
+  'fs-guard'?: FsGuardConfig;
+  'exec-guard'?: ExecGuardConfig; // future
+}
+
+export interface FsGuardConfig {
+  allowed?: string[];
+  denied?: string[];
+  followSymlinks?: boolean;
+}
+
+export interface ExecGuardConfig {
+  languages?: string[];
+  timeout?: number;
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/types.ts ===
+
+[rd3] file_read:
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/loadConfig.ts ===
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import { load as loadYaml } from 'js-yaml';
+import type { LoafConfig } from './types.js';
+
+export async function loadConfig(repoPath: string): Promise<LoafConfig> {
+  const configPath = join(repoPath, 'loaf.yml');
+
+  try {
+    const content = await readFile(configPath, 'utf8');
+    const config = loadYaml(content) as LoafConfig;
+
+    // Validate config structure
+    if (!config || typeof config !== 'object') {
+      throw new Error('Invalid config: must be an object');
+    }
+
+    if (!config.version) {
+      throw new Error('Config missing version');
+    }
+
+    return config;
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      // Return default config when file doesn't exist
+      return {
+        version: 1,
+        'fs-guard': {
+          allowed: [`${repoPath}/**`, '/tmp/**'],
+          denied: ['/**/.git/**', '/**/.ssh/**', '/etc/**', '/sys/**', '/proc/**']
+        }
+      };
+    }
+    throw error;
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/loadConfig.ts ===
 === END ===
