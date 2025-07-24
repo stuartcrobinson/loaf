@@ -236,14 +236,10 @@ export class Loaf {
 
     if (this.options.hooks) {
       // Use provided configuration
-      const hooksConfig: HooksConfig = {
-        hooks: this.options.hooks,
-        vars: {}
-      };
-      this.hooksManager = new HooksManager(hooksConfig, this.options.repoPath);
+      this.hooksManager = new HooksManager(this.options.hooks, {}, this.options.repoPath);
     } else if (this.config.hooks) {
       // Use hooks from loaded config
-      this.hooksManager = new HooksManager(this.config.hooks, this.options.repoPath);
+      this.hooksManager = new HooksManager(this.config.hooks, this.config.vars, this.options.repoPath);
     } else if (this.options.createConfigIfMissing) {
       // Create starter config if missing
       const loafYmlPath = join(this.options.repoPath!, 'loaf.yml');

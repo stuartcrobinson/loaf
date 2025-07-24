@@ -78,6 +78,13 @@ done
 file_list=$(cat <<'EOF'
 
 
+/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/git-integration.test.ts
+/Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
+/Users/stuart/repos/loaf/proj/comp/orch/src/types.ts
+/Users/stuart/repos/loaf/proj/comp/orch/src/loadConfig.ts
+/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-basic.test.ts
+/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-abort.test.ts
 
 
 

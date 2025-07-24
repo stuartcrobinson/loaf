@@ -32,7 +32,7 @@ describe('HooksManager Integration', () => {
       }
     };
 
-    const hooks = new HooksManager(config);
+    const hooks = new HooksManager(config.hooks, config.vars);
     
     // Run before hooks
     const beforeResult = await hooks.runBefore();
@@ -61,7 +61,7 @@ describe('HooksManager Integration', () => {
       }
     };
 
-    const hooks = new HooksManager(config);
+    const hooks = new HooksManager(config.hooks, config.vars);
     const result = await hooks.runBefore();
     
     expect(result.success).toBe(true);
@@ -80,7 +80,7 @@ describe('HooksManager Integration', () => {
       }
     };
 
-    const hooks = new HooksManager(config);
+    const hooks = new HooksManager(config.hooks, config.vars);
     const result = await hooks.runAfter({ STATUS: 'from-context' });
     
     expect(result.success).toBe(true);
@@ -97,7 +97,7 @@ describe('HooksManager Integration', () => {
       }
     };
 
-    const hooks = new HooksManager(config);
+    const hooks = new HooksManager(config.hooks, config.vars);
     const result = await hooks.runBefore();
     
     expect(result.success).toBe(false);
@@ -116,7 +116,7 @@ describe('HooksManager Integration', () => {
       }
     };
 
-    const hooks = new HooksManager(config);
+    const hooks = new HooksManager(config.hooks, config.vars);
     const result = await hooks.runBefore();
     
     expect(result.success).toBe(false);
@@ -134,7 +134,7 @@ describe('HooksManager Integration', () => {
       }
     };
 
-    const hooks = new HooksManager(config);
+    const hooks = new HooksManager(config.hooks, config.vars);
     const start = Date.now();
     const result = await hooks.runBefore();
     const duration = Date.now() - start;
@@ -189,7 +189,7 @@ vars:
       }
     };
 
-    const hooks = new HooksManager(config);
+    const hooks = new HooksManager(config.hooks, config.vars);
     const result = await hooks.runBefore();
     
     expect(result.success).toBe(true);

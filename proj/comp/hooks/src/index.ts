@@ -71,7 +71,8 @@ export class HooksManager {
         throw new Error(`Invalid config: ${validation.error}`);
       }
 
-      this.config = config;
+      this.config = config.hooks || {};
+      this.vars = config.vars || {};
       return config;
     } catch (error: any) {
       if (error.code === 'ENOENT') {
