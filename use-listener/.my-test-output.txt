@@ -1,5 +1,20 @@
 === LOAF RESULTS ===
+h3 ✅ file_replace_lines /Users/stuart/repos/loaf/use-listener/test-files/ham.md
+h4 ✅ file_replace_lines /Users/stuart/repos/loaf/use-listener/test-files/ham.md
+h1 ❌ file_replace_lines ERROR: Unclosed quoted string (line 22)
 === END ===
 
 === OUTPUTS ===
+
+[h3] file_replace_lines /Users/stuart/repos/loaf/use-listener/test-files/ham.md:
+{
+  "path": "/Users/stuart/repos/loaf/use-listener/test-files/ham.md",
+  "lines_replaced": 1
+}
+
+[h4] file_replace_lines /Users/stuart/repos/loaf/use-listener/test-files/ham.md:
+{
+  "path": "/Users/stuart/repos/loaf/use-listener/test-files/ham.md",
+  "lines_replaced": 1
+}
 === END ===

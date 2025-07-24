@@ -27,8 +27,12 @@ Has your watch passed without incident?
 No strange apparitions or disturbances to report?
 Has your watch passed without incident?
 No strange apparitions or disturbances to report?
+Has your watch passed without incident?
+No strange apparitions or disturbances to report?
 In this thick air that chills the very bones.
-Have you had quiet guard?
+I think I hear them. Stand, ho! Who's there?
+Halt! Who approaches at this late hour?
+State your names and business on the battlements.
 Has your watch passed without incident?
 I think I hear them. Stand, ho! Who's there?
 Halt! Who approaches at this late hour?

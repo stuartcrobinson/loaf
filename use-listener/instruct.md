@@ -1,36 +1,54 @@
+# NESL Tool API Reference
 
-```sh nesl
-#!nesl [@three-char-SHA-256: rr1]
-action = "file_write"
-path = "/tmp/t_replace-line-range/code.js"
-content = <<'EOT_rr1'
-function oldImplementation() {
-  console.log('line 2');
-  console.log('line 3');
-  console.log('line 4');
-  return 'old';
-}
-EOT_rr1
-#!end_rr1
+## Syntax
+```sh
+#!nesl [@three-char-SHA-256: q8r]
+action = "tool_name"
+param1 = <<'EOT_q8r'
+value line 1
+value line 2
+EOT_q8r
+param2 = "value"
+#!end_q8r
 ```
 
-```sh nesl
-#!nesl [@three-char-SHA-256: rr2]
-action = "file_replace_lines"
-path = "/tmp/t_replace-line-range/code.js"
-lines = "2-5"
-new_content = <<'EOT_rr2'
-  // New implementation
-  return 'new';
-EOT_rr2
-#!end_rr2
-```
+Constraints:
+- Block ID must be exactly 3 characters
+- Always use heredocs (`<<'EOT_[id]'...EOT_[id]`) for file contents
+- All paths must be absolute
 
+## Tools
 
-/tmp/t_replace-line-range/code.js content:
-```
-function oldImplementation() {
-  // New implementation
-  return 'new';
-}
-```
+### `file_write`
+Write content to file (creates or overwrites)  
+- `path`
+- `content`
+
+### `file_replace_text`
+Replace exactly one text occurrence  
+- `path`
+- `old_text`
+- `new_text` 
+
+### `file_replace_lines`
+Replace the given line(s) with the supplied `new_content` string
+- `path`
+- `lines` eg "3" or a range like "2-13"
+- `new_content` 
+
+### `file_read`
+Read file contents  
+- `path` 
+
+### `file_read_numbered`
+Read file with line numbers  
+- `path`
+
+### `files_read`
+Read multiple files  
+- `paths`
+
+### `exec`
+Execute shell commands  
+- `lang`
+- `code`
