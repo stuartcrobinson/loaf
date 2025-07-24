@@ -21,13 +21,14 @@ The component executes commands sequentially, failing fast on errors unless expl
 - The system SHALL interpolate variables before shell execution
 - The system SHALL fail fast on command errors unless continueOnError is set
 - The system SHALL respect per-command timeout values
-- The system SHALL load configuration from loaf.yml if present
+- The system SHALL create starter loaf.yml if not exist
+- The system SHALL load configuration from loaf.yml
 
 # example
 
-Example .clada.yml:
+Example `loaf.yml`:
 
-# Clada configuration
+# Loaf configuration
 
 ```yaml
 version: 1  # For future compatibility

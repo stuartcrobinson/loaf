@@ -209,3 +209,9 @@ new_path = "/tmp/t_move-nonexistent-file/nowhere.txt"
   "error": "file_move: Source file not found '/tmp/t_move-nonexistent-file/ghost.txt' (ENOENT)"
 }
 ```
+
+
+
+consider using EARS somehow for specs/reqs: EARS: The Easy Approach to Requirements Syntax
+
+for dependency blocks in docs api, do not include external dependencies!!

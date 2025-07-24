@@ -1,103 +1,1150 @@
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/ABSTRACT.md ===
+# Hooks Component
+
+## Purpose (60 words)
+Execute user-defined shell commands before and after NESL block execution. Enables VCS integration through configurable lifecycle hooks with variable interpolation, timeout control, and error handling. Loads configuration from loaf.yml files.
+
+## Overview (300 words)
+The hooks component provides lifecycle management for loaf operations, allowing users to define shell commands that run before and after NESL execution. This enables seamless version control integration without hardcoding VCS-specific logic into loaf itself.
+
+Key features:
+- Before/after hook execution with configurable commands
+- Variable interpolation performed before shell execution for security
+- Per-command timeout and error handling options
+- YAML configuration loading from project and user directories
+- Shell command escaping for safety
+
+The component executes commands sequentially, failing fast on errors unless explicitly configured to continue. Variables are interpolated before passing to the shell, preventing injection attacks. Commands execute in the repository root by default with optional cwd override.
+
+## Requirements (EARS format)
+- The system SHALL execute before hooks prior to NESL execution
+- The system SHALL execute after hooks following NESL execution
+- The system SHALL interpolate variables before shell execution
+- The system SHALL fail fast on command errors unless continueOnError is set
+- The system SHALL respect per-command timeout values
+- The system SHALL create starter loaf.yml if not exist
+- The system SHALL load configuration from loaf.yml
+
+# example
+
+Example `loaf.yml`:
+
+# Loaf configuration
+
+```yaml
+version: 1  # For future compatibility
+
+hooks:
+  before:
+    - run: git stash --include-untracked
+      
+  after:
+    - run: git add -A
+    - run: git commit -m "${COMMIT_MSG}"
+    - run: git push
+      continueOnError: true
+      timeout: 10000  # 10s for slow networks
+
+# Variables available in commands
+vars:
+  COMMIT_MSG: "AI-assisted changes"
+```
+
+https://claude.ai/chat/d344370c-aaf5-46ec-9786-93cc208f7613
+https://claude.ai/chat/4bdbd3d3-d3e6-4249-bce8-d19f882b2fba
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/ABSTRACT.md ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/API.md ===
+# Component: hooks
+
+## Component Type
+standard
+
+## Dependencies
+
+```yaml
+dependencies:
+  external/js-yaml:
+    functions: [load]
+  
+  external/shell-escape:
+    functions: [escape]
+  
+  node:child_process:
+    functions: [exec]
+  
+  node:util:
+    functions: [promisify]
+```
+
+## Exports
+
+```yaml
+exports:
+  classes:
+    HooksManager:
+      constructor: [config?: HooksConfig]
+      methods: [runBefore, runAfter, loadConfig]
+  types:
+    - HooksConfig
+    - Command
+    - HookContext
+    - HookResult
+```
+
+### HooksManager (class)
+- **Purpose**: Manages lifecycle hooks for command execution
+- **Constructor**: `new HooksManager(config?: HooksConfig)`
+- **State**: Loaded configuration and variable context
+
+### runBefore
+- **Signature**: `async runBefore(context?: HookContext): Promise<HookResult>`
+- **Purpose**: Execute all before hooks sequentially
+- **Throws**: First command failure unless continueOnError
+
+### runAfter  
+- **Signature**: `async runAfter(context?: HookContext): Promise<HookResult>`
+- **Purpose**: Execute all after hooks sequentially
+- **Throws**: First command failure unless continueOnError
+
+### loadConfig
+- **Signature**: `async loadConfig(path: string): Promise<HooksConfig>`
+- **Purpose**: Load hooks configuration from YAML file
+- **Throws**: `Error` on invalid YAML or missing file
+
+### HooksConfig (type)
+```typescript
+interface HooksConfig {
+  hooks?: {
+    before?: Command[];
+    after?: Command[];
+  };
+  vars?: Record<string, string>;
+}
+```
+
+### Command (type)
+```typescript
+interface Command {
+  run: string;
+  continueOnError?: boolean;
+  timeout?: number;
+  cwd?: string;
+}
+```
+
+### HookContext (type)
+```typescript
+interface HookContext {
+  [key: string]: string | number | boolean;
+}
+```
+
+### HookResult (type)
+```typescript
+interface HookResult {
+  success: boolean;
+  executed: number;
+  errors?: Array<{
+    command: string;
+    error: string;
+  }>;
+}
+```
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/API.md ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/ARCH.md ===
+# Hooks Architecture
+
+## Design Decisions
+
+### Variable Interpolation
+- **Decision**: Interpolate before shell execution
+- **Rationale**: Prevents shell injection, predictable behavior
+- **Implementation**: Simple string replacement of ${VAR} patterns
+
+### Error Handling
+- **Decision**: Fail fast by default
+- **Rationale**: Predictable, safe default for VCS operations
+- **Override**: Per-command `continueOnError` flag
+
+### Configuration Loading
+1. Check `loaf.yml` in repository root
+
+### Command Execution
+- Internal shell execution using child_process.exec
+- Default cwd is repository root
+- Sequential execution (no parallelism)
+- Promisified exec for async/await pattern
+
+### Timeout Handling
+- Per-command timeout configuration
+- Kill entire process tree on timeout
+- Default: 30 seconds
+
+## Security Considerations
+- Shell escaping via shell-escape library
+- No dynamic command construction
+- Variables interpolated before shell sees them
+
+## Internal Implementation
+
+### Shell Execution
+- Direct use of `child_process.exec` with promisify wrapper
+- Custom timeout implementation (exec doesn't support natively)
+- Process killing on timeout using process.kill()
+- Error standardization for consistent handling
+
+### Process Management
+```javascript
+// Timeout approach
+const timeoutPromise = new Promise((_, reject) => 
+  setTimeout(() => reject(new Error('Command timeout')), timeout)
+);
+Promise.race([execPromise, timeoutPromise]);
+```
+
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/ARCH.md ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/API.md ===
+# Component: loaf
+
+## Component Type
+standard
+
+## Dependencies
+
+```yaml
+dependencies:
+  proj/comp/nesl-action-parser:  # [IMPLEMENTED]
+    functions: [parseNeslResponse]
+    types: [ParseResult, LoafAction, ParseError, ValidationResult, TransformError]
+  
+  proj/comp/fs-ops:              # [PARTIALLY IMPLEMENTED]
+    functions: [executeFileOperation]
+    types: [FileOpResult]
+    classes:
+      FileOpError:
+        extends: Error
+  
+  proj/comp/exec:                # [PLANNED]
+    functions: [executeCommand]
+    types: [ExecResult]
+  
+  proj/comp/git-tx:              # [PLANNED - v1.2]
+    functions: [ensureCleanRepo, commitChanges]
+    types: [GitError]
+  
+  proj/comp/context:             # [PLANNED]
+    functions: [addPath, removePath, listPaths, clearContext]
+    types: [ContextError]
+  
+  external/nesl-js:
+    functions: [parseNesl]
+    types: [Block, ParseResult, ParseError]
+```
+
+## Exports
+
+```yaml
+exports:
+  classes:
+    Loaf:
+      constructor: [options?: LoafOptions]
+      methods: [execute]
+  types: 
+    - ExecutionResult
+    - ActionResult  
+    - LoafOptions
+  # Note: ParseError is re-exported from nesl-action-parser
+```
+
+### Loaf (class)
+- **Purpose**: Main orchestrator executing NESL blocks from LLM output
+- **Constructor**: `new Loaf(options?: LoafOptions)`
+- **State**: Maintains working directory and context set across execute() calls
+
+### execute
+- **Signature**: `async execute(llmOutput: string): Promise<ExecutionResult>`
+- **Purpose**: Parse and execute all NESL blocks in LLM output, commit results
+- **Process**: 
+  1. Parse NESL blocks
+  2. Convert to actions
+  3. Execute all valid actions
+  4. (v1.2: Git commit with summary)
+- **Throws**: Never - all errors captured in ExecutionResult
+- **Test-data**: `test-data/execute/basic-operations.md` [IMPLEMENTED]
+
+### ExecutionResult (type)
+```typescript
+interface ExecutionResult {
+  success: boolean              // False if any action failed
+  totalBlocks: number          // Count of NESL blocks found
+  executedActions: number      // Count of actions attempted
+  results: ActionResult[]      // All execution results
+  parseErrors: ParseError[]    // NESL parsing errors
+  fatalError?: string         // System failure (v1.2: will include git errors)
+}
+```
+
+### ActionResult (type)
+```typescript
+interface ActionResult {
+  seq: number                  // Execution order
+  blockId: string             // NESL block ID
+  action: string              // Action type
+  params: Record<string, any> // Input parameters
+  success: boolean
+  error?: string              // Error message if failed
+  data?: any                  // Action-specific output
+}
+```
+
+### ParseError (type)
+```typescript
+interface ParseError {
+  blockId?: string            // If error is block-specific
+  error: NeslError            // From parser
+}
+```
+
+### LoafOptions (type)
+```typescript
+interface LoafOptions {
+  repoPath?: string           // Default: process.cwd()
+  gitCommit?: boolean         // v1.2 feature - Default: true
+}
+```
+
+## Internal Architecture
+
+### Execution Flow
+```
+execute(llmOutput)
+  → parseNESL(llmOutput) → NeslParseResult
+  → for each valid block:
+    → convertToActions(block) → LoafAction[]
+    → for each action:
+      → route to appropriate executor
+      → capture result
+  → commitChanges(results)
+  → return ExecutionResult
+```
+
+### Action Routing
+- file_* → fs-ops
+- dir_* → fs-ops
+- exec → exec
+- context_* → context
+- ls, grep, glob → fs-ops (read operations)
+
+### Error Handling
+- Parser errors: Skip block, record error
+- Conversion errors: Skip action, record error
+- Execution errors: Continue execution, record error
+- Git errors: Fatal, abort with fatalError
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/API.md ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md ===
+# Loaf Architecture
+
+
+IMPORTANT TOOL TESTING NOTES:
+
+- for test specific loaf tools, each tool must get its own test case file, for easy visibility into which tools have been implemented and tested yet.
+- aka `proj/comp/fs-ops/test-data/integration/file_delete.cases.md`
+
+## Core Design Decisions
+
+### Transaction Model
+- **No automatic rollback** - All operations commit, including failures
+- **Failures are data** - LLM needs failure feedback for next steps
+- **Forward-only progress** - Cheaper than regenerating responses
+- **Manual rollback only** - Human-initiated via git commands
+- **Boundary**: One git commit per `execute()` call
+- **API**: Explicit transaction management (details TBD)
+
+### NESL Processing Pipeline
+1. NESL parser (external npm) → AST
+2. AST → Action objects (nesl-ast-converter)
+3. Actions → Execution → Results
+
+### NESL AST Structure
+```typescript
+interface NeslParseResult {
+  blocks: NeslBlock[]
+  errors: NeslError[]
+}
+
+interface NeslBlock {
+  id: string           // 3-char SHA-256
+  properties: {
+    action: string     // Maps to tool name (e.g., "file_write")
+    [key: string]: any // Tool-specific parameters
+  }
+  startLine: number
+  endLine: number
+}
+
+interface NeslError {
+  code: string         // e.g., "DUPLICATE_KEY"
+  line: number
+  column: number
+  length: number
+  blockId: string
+  content: string
+  context: string
+  message: string
+}
+```
+
+### Error Propagation Strategy
+- **Parser errors**: Skip blocks with parser errors, execute valid blocks only
+- **Validation errors**: Skip invalid actions, execute valid ones
+- **Execution errors**: Continue with remaining actions
+- **Result**: Complete execution log with successes and failures
+
+### Action Mapping
+- NESL `action` property maps directly to tool names from unified-design.yaml
+- Use canonical names: `file_write`, `exec`, etc.
+
+### Context Management
+- **V1**: Simple `Set<string>` of file paths
+- **Storage**: In-memory only, no persistence across sessions
+- **V2 Future**: Sub-file references (lines, functions, sections)
+
+### Execution Model
+- **Synchronous**: All operations block until complete
+- **CWD Management**: Session-based working directory
+  - Default: Repository root
+  - Each exec can override with `cwd` parameter
+  - CWD persists within session, not across transactions
+- **Results Format**: Flat array with sequence numbers
+```typescript
+interface ActionResult {
+  seq: number          // Execution order
+  blockId: string      // NESL block ID
+  action: string       // Action type
+  params: any          // Input parameters
+  success: boolean
+  error?: string       // Error message if failed
+  data?: any           // Action-specific output (stdout, content, etc.)
+}
+```
+
+### Security Model (V1)
+- **None**: Full filesystem access
+- **No validation**: Any path allowed
+- **No sandboxing**: Direct execution
+- **V2 Future**: Path allowlisting per unified-design.yaml. FOR THIS REASON all fs stuff should immediately be implemented using our fs wrapper functions so this whitelisting/blacklisting is easy to implment in the future.
+
+## Component Structure
+```
+loaf/
+├── proj/
+│   ├── comp/
+│   │   ├── nesl-ast-converter/  # AST → Actions
+│   │   ├── fs-ops/              # File/directory operations
+│   │   ├── exec/                # Command execution
+│   │   ├── git-tx/              # Git transaction management
+│   │   └── context/             # Working set management
+│   └── doc/
+│       ├── API.md               # Main orchestrator API
+│       ├── ARCH.md              # This document
+│       └── ABSTRACT.md          # Project overview
+```
+
+## Implementation Priorities
+1. `nesl-ast-converter` - Cannot test without this
+2. `fs-ops` - Core functionality
+3. `exec` - Command execution
+4. `git-tx` - Transaction wrapper
+5. `context` - Working set (may be simple enough to inline)
+
+## Open Questions
+
+### Critical
+1. **NESL parser package**: `nesl-js` from `github:nesl-lang/nesl-js`
+   - Import: `const { parseNESL } = require('nesl-js')`
+2. **Transaction API**: Single `execute()` method processes NESL block array
+
+### Design
+1. **Parser error handling**: Execute blocks with parser errors or skip?
+2. **Git conflict handling**: How to handle conflicts during manual rollback?
+3. **Concurrent access**: Multiple loaf instances on same repo?
+4. **Partial failure behavior**: Continue executing after first failure or abort?
+
+### Future
+1. **Context references**: Syntax for line ranges and functions
+2. **Execution isolation**: Container/VM strategy for V2
+3. **Streaming results**: Return results as actions complete or batch at end?
+
+## Design Rationale
+
+### Why No Automatic Rollback
+Traditional transaction systems rollback on failure to maintain consistency. Loaf explicitly rejects this because:
+1. **LLM responses are expensive** - Regenerating costs time and money
+2. **Partial success is informative** - LLM learns from failures
+3. **Git preserves history** - Can always manually revert
+4. **Forward progress over perfection** - Incremental improvement model
+
+### Why Synchronous Execution
+1. **Deterministic results** - LLM needs to know exact outcomes
+2. **Sequential dependencies** - Later actions may depend on earlier ones
+3. **Simpler implementation** - No async state management
+4. **Git compatibility** - Git operations are inherently synchronous
+
+### Why In-Memory Context
+1. **Session isolation** - Each LLM conversation is independent
+2. **No persistence complexity** - No file format versioning
+3. **Git is the source of truth** - Files on disk matter, not context
+4. **Quick reset** - New session = clean slate
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md ===
+
+=== START FILE: /Users/stuart/repos/loaf/xd5_ref.md ===
+# XD5 LLM Quick Reference
+
+## Core Principle
+Documentation maintains dependency graphs for deterministic context assembly. Initial dependencies are hypotheses - implementation discovers reality. The STOP protocol ensures documentation evolves to match actual dependencies.
+
+## File Structure
+```
+<repo>/
+└── proj/
+    ├── doc/
+    │   ├── API.md        # ⚠️ CRITICAL: All dependencies + exports
+    │   ├── ABSTRACT.md   # 60-word purpose + 300-word overview + brief spec in EARS format (The Easy Approach to Requirements Syntax)
+    │   └── ARCH.md       # Technical decisions, constraints
+    ├── test-data/        # Test cases as JSON/MD files
+    │   ├── unit/         # Unit test data
+    │   └── integration/  # Integration test data
+    ├── test/             # Minimal harnesses loading test-data
+    │   ├── unit/         # Unit test harnesses
+    │   └── integration/  # Integration test harnesses
+    ├── test-intn/        # Integration tests for dependencies
+    ├── src/              # Implementation
+    └── comp/             # Sub-components (recursive) - do not need 'proj' dirs
+```
+
+## API.md Template
+```markdown
+# Component: {name}
+
+## Component Type
+standard | types-only
+
+## Dependencies
+[Provisional - updated via STOP protocol when implementation reveals actual needs]
+
+Mark internal component status: [PLANNED], [IN-PROGRESS], or [IMPLEMENTED]
+External dependencies do not need status markers.
+
+```yaml
+dependencies:
+  # Initial hypothesis based on design
+  proj/comp/payment:                                       # [PLANNED]
+    functions: [validateCard, processRefund] # may change 
+    types: [PaymentResult, CardType]
+    errors: [PaymentError]
+  
+  proj/comp/auth:                                          # [IMPLEMENTED]
+    functions: [checkPermission, validateToken]
+    types: [User, TokenPayload]
+  
+  proj/comp/logger:                                        # [IN-PROGRESS]
+    functions: [logTransaction]  # Audit requirement
+  
+  proj/comp/payment-types: "*"  # Wildcard for types-only  # [IMPLEMENTED] 
+  
+  external/lodash:
+    functions: [groupBy, mapValues]
+  
+  external/@stripe/stripe-js:
+    types: [Stripe, PaymentIntent]
+    functions: [loadStripe]
+```
+
+## Exports
+[Structured YAML for dependency graph tooling, then prose descriptions]
+
+```yaml
+exports:
+  functions: [functionName1, functionName2]
+  types: [Type1, Type2, Type3]
+  classes:
+    ClassName:
+      methods: [method1, method2]
+  errors: [CustomError1, CustomError2]
+```
+
+### {functionName}
+- **Signature**: `{functionName}(param: Type) -> ReturnType`
+- **Purpose**: Single sentence.
+- **Throws**: `{ErrorType}` when {condition}
+- **Test-data**: `test-data/{path}/{functionName}.json` [PLANNED|IMPLEMENTED]
+
+
+
+## Workflow
+
+### Core Flow: Design → Test → Implement
+
+1. **Write docs**: ABSTRACT.md → ARCH.md → API.md (provisional)
+2. **Design tests**: E2E hypothesis → Decompose → Unit tests  
+3. **Implement**: Discover real dependencies → Update docs → Complete code
+
+### Test Authority & Evolution
+
+**Tests Are Source of Truth (But Not Infallible)**
+- Tests define what code SHOULD do
+- During debug: ALWAYS fix code to match tests first
+- Test errors discovered? Ask human: "I believe test X is incorrect because Y. Should I update it?"
+- NEVER auto-modify tests while debugging
+- Each test change needs explicit approval
+
+### Detailed Flow
+
+1. **E2E Test Hypothesis** - Write component test-data (expect evolution)
+2. **Pseudocode** - Rough implementation to discover structure
+3. **Extract Functions** - Identify & extract all pure functions
+4. **Unit Tests** - Write test-data for each function
+5. **Implement Functions** - Red/green/debug (fix code, not tests)
+6. **Revise E2E Tests** - Align with discovered behavior (ask human)
+7. **Wire Component** - Connect tested functions
+8. **Debug E2E** - Fix code until green
+
+**Debug Protocol**: Test fails? → Try fixing code → Still failing? → Consider test error → Request human approval for any test change
+
+**If docs are wrong**: STOP → Update docs → Update tests → Continue
+
+
+
+### Critical Implementation Rules
+
+**Initial Docs Are Hypotheses**: 
+- First API.md contains best guesses
+- Dependencies WILL be wrong
+- This is expected and healthy
+- Discovery through implementation is the goal
+
+**🛑 STOP Protocol**: When implementation reveals doc errors:
+1. STOP immediately
+2. Update API.md/ARCH.md
+3. Continue with correct docs
+
+**Test Immutability**: 
+- Test harnesses = frozen after creation
+- Test data = only change with human approval
+- Fix code, not tests (unless explicitly approved)
+
+**Dependency Updates**:
+- Add to API.md as discovered
+- Include transitive deps if needed for understanding
+- External deps must be explicit
+
+## Test Data Format
+```json
+{
+  "cases": [
+    {
+      "name": "descriptive name",
+      "input": [arg1, arg2],
+      "expected": {result},
+      "throws": "ErrorType"  // optional
+    }
+  ]
+}
+```
+
+## Quick Checks
+
+Before implementing:
+- [ ] API.md declares all exports?
+- [ ] Dependencies section updated?
+- [ ] Test data files created?
+
+During implementation:
+- [ ] Tests fail first (red phase)?
+- [ ] Docs match reality? (if not → STOP)
+- [ ] All imports declared in API.md?
+
+## Common Patterns
+
+**Extract pure functions during pseudocode**:
+```javascript
+// Pseudocode reveals:
+// extractedFn: validateInput(x) -> bool
+// extractedFn: processData(data) -> result
+```
+
+**Types-only components**: No test/ or src/, only doc/
+
+**Path conventions**: All relative to `<repo>/`
+- Component: `proj/comp/{name}`
+- Nested: `proj/comp/{parent}/comp/{child}`
+
+
+# update 
+
+- need to update this so that we save our pseudocde in some sort of documetnation, maybe temp documentation.  so if we implement the fucntiosn to unit test, we dont get confused later about how theyre supposed to be used.
+
+- ideally, each extracted function unit-testable function would be in its own file.  for parallelism with the unit test files
+
+- TESTING PATHS
+
+dont save files directly to `/tmp/`.  save them to a dir in the tmp dir taht is named with the name of the test preceedd by 't_', eg `/tmp/t_move-nonexistent-file`
+
+like: 
+
+
+### 003-move-nonexistent-file
+
+```sh nesl
+#!nesl [@three-char-SHA-256: mnf]
+action = "file_move"
+old_path = "/tmp/t_move-nonexistent-file/ghost.txt"
+new_path = "/tmp/t_move-nonexistent-file/nowhere.txt"
+#!end_mnf
+```
+
+```json
+{
+  "success": false,
+  "error": "file_move: Source file not found '/tmp/t_move-nonexistent-file/ghost.txt' (ENOENT)"
+}
+```
+
+
+
+consider using EARS somehow for specs/reqs: EARS: The Easy Approach to Requirements Syntax
+
+for dependency blocks in docs api, do not include external dependencies!!
+=== END FILE: /Users/stuart/repos/loaf/xd5_ref.md ===
+
 === START FILE: /Users/stuart/repos/loaf/replacer/replacer_llm_instructions.md ===
-   1:coding style guide:  TDD.  self documenting code.  every api  function name should make it super obvious who is doing what and why
-   2:
-   3:WOL = "words or less, please"
-   4:
-   5:keep the docs as lean
-   6:
-   7:refactor code to make it smaller whenever possible.  DRY.
-   8:
-   9:IMPORTANT:  do not generate edit instructions unless specifically asked to.  not necessary when just discussing and brainstorming
-  10:
-  11:- all code functions and classes or large (10 lines of code or more?) need code comments to cocnisely and lcearly describe what they're doing and why and how
-  12:
-  13:IMPORTANT: 
-  14:
-  15:whenever you generate new code, use the following format.  dont just generate a standalone artifact.  when generating one or multiple new files, use the OVERWRITE pattern shown below 
-  16:
-  17:For each specific edit that needs to happen, list a brief explanation for the change, list file name, and then explicitly make it clear what the target text is that need to be changed, and then the replacement text is that will replace it. Each of those blocks of text or code need to be explicit verbatim character by character Perfect matches for the intended text.  be sure to put the filenames and expalanations on their own lines for easy human reading even in output format.  like paragraph breaks before and after so thye're on their own lines even when not in code blocks.  use this format below exactly. note that the OVERWRITE style block can be used to create new files and its parent dirs.
-  18:
-  19:make the search find text or code blocks as small as possible to still be unique identifiers for what needs to be changed in the underlying files 
-  20:
-  21:for the file path, use as much of the path that you know of.  should be as specific as you can accurately be.  
-  22:
-  23:make sure that file paths include the current main project dir
-  24:
-  25:<<<EXPLANATION>>>
-  26:
-  27:this is why the change should happen
-  28:
-  29:<<<FILE>>>
-  30:
-  31:package/replacer_demo_src/main.py
-  32:
-  33:<<<SEARCH>>>
-  34:def old_function():
-  35:   x = 1
-  36:   y = 2
-  37:   return x + y
-  38:<<<REPLACE>>>
-  39:def new_function():
-  40:   result = 3
-  41:   return result
-  42:<<<END>>>
-  43:
-  44:
-  45:
-  46:
-  47:<<<EXPLANATION>>>
-  48:
-  49:this is why this change should happen
-  50:
-  51:<<<FILE>>>
-  52:july/coding/bobstuff/react/config/settings.json
-  53:<<<OVERWRITE>>>
-  54:{
-  55:   "debug": true,
-  56:   "port": 8080
-  57:}
-  58:<<<END>>>
-  59:
-  60:NOTE: if you want to remove a section of code, your replace block must contain a blank line and a space:
-  61:
-  62:
-  63:<<<EXPLANATION>>>
-  64:
-  65:remove the search code
-  66:
-  67:<<<FILE>>>
-  68:
-  69:package/replacer_demo_src/main.py
-  70:
-  71:<<<SEARCH>>>
-  72:def old_function():
-  73:   x = 1
-  74:   y = 2
-  75:   return x + y
-  76:<<<REPLACE>>>
-  77: 
-  78:<<<END>>>
-  79:
-  80:see how the REPLACE block can never be totally empty. must contain blank line and whitespace (space(s)) too
-  81:
-  82:IMPORTANT:  each edit item must list its associated FILE.  each SEARCH/REPLACE or OVERWRITE etc block must be immediately preceeded by the respective file 
-  83:
-  84:$$$$$$$$$$$$$
-  85:
-  86:Prioritize substance, clarity, and depth. Challenge all my proposals, designs, and conclusions as hypotheses to be tested. Sharpen follow-up questions for precision, surfacing hidden assumptions, trade offs, and failure modes early. Default to terse, logically structured, information-dense responses unless detailed exploration is required. Skip unnecessary praise unless grounded in evidence. Explicitly acknowledge uncertainty when applicable. Always propose at least one alternative framing. Accept critical debate as normal and preferred. Treat all factual claims as provisional unless cited or clearly justified. Cite when appropriate. Acknowledge when claims rely on inference or incomplete information. Favor accuracy over sounding certain.
-  87:
-  88:check anything online when it feels relevant.  good to compare our thoughts/assumptions with what other people are actually doing and thinking
-  89:
-  90:when asked to share your thoughts (like if user says "wdyt"), then walk it out and talk it out gradually, incrementally, slowly, and thoughtfully.  challenge me so we can succeed overall
-  91:
-  92:dont fall into the trap of equating "implementation" with "low-level".  implementation decisions can be high-level when they affect the system's fundamental behavior
-  93:
-  94:IMPORTANT EDIT INSTRUCTIONS NOTE:
-  95:
-  96:- always use full absolute file paths for edit instructions
-  97:
-  98:- to delete a file, share bash commands with the user in your response.  do not use edit instructions to delete a file
-  99:
+coding style guide:  TDD.  self documenting code.  every api  function name should make it super obvious who is doing what and why
+
+WOL = "words or less, please"
+
+keep the docs as lean
+
+refactor code to make it smaller whenever possible.  DRY.
+
+IMPORTANT:  do not generate edit instructions unless specifically asked to.  not necessary when just discussing and brainstorming
+
+- all code functions and classes or large (10 lines of code or more?) need code comments to cocnisely and lcearly describe what they're doing and why and how
+
+IMPORTANT: 
+
+whenever you generate new code, use the following format.  dont just generate a standalone artifact.  when generating one or multiple new files, use the OVERWRITE pattern shown below 
+
+For each specific edit that needs to happen, list a brief explanation for the change, list file name, and then explicitly make it clear what the target text is that need to be changed, and then the replacement text is that will replace it. Each of those blocks of text or code need to be explicit verbatim character by character Perfect matches for the intended text.  be sure to put the filenames and expalanations on their own lines for easy human reading even in output format.  like paragraph breaks before and after so thye're on their own lines even when not in code blocks.  use this format below exactly. note that the OVERWRITE style block can be used to create new files and its parent dirs.
+
+make the search find text or code blocks as small as possible to still be unique identifiers for what needs to be changed in the underlying files 
+
+for the file path, use as much of the path that you know of.  should be as specific as you can accurately be.  
+
+make sure that file paths include the current main project dir
+
+<<<EXPLANATION>>>
+
+this is why the change should happen
+
+<<<FILE>>>
+
+package/replacer_demo_src/main.py
+
+<<<SEARCH>>>
+def old_function():
+   x = 1
+   y = 2
+   return x + y
+<<<REPLACE>>>
+def new_function():
+   result = 3
+   return result
+<<<END>>>
+
+
+
+
+<<<EXPLANATION>>>
+
+this is why this change should happen
+
+<<<FILE>>>
+july/coding/bobstuff/react/config/settings.json
+<<<OVERWRITE>>>
+{
+   "debug": true,
+   "port": 8080
+}
+<<<END>>>
+
+NOTE: if you want to remove a section of code, your replace block must contain a blank line and a space:
+
+
+<<<EXPLANATION>>>
+
+remove the search code
+
+<<<FILE>>>
+
+package/replacer_demo_src/main.py
+
+<<<SEARCH>>>
+def old_function():
+   x = 1
+   y = 2
+   return x + y
+<<<REPLACE>>>
+ 
+<<<END>>>
+
+see how the REPLACE block can never be totally empty. must contain blank line and whitespace (space(s)) too
+
+IMPORTANT:  each edit item must list its associated FILE.  each SEARCH/REPLACE or OVERWRITE etc block must be immediately preceeded by the respective file 
+
+$$$$$$$$$$$$$
+
+Prioritize substance, clarity, and depth. Challenge all my proposals, designs, and conclusions as hypotheses to be tested. Sharpen follow-up questions for precision, surfacing hidden assumptions, trade offs, and failure modes early. Default to terse, logically structured, information-dense responses unless detailed exploration is required. Skip unnecessary praise unless grounded in evidence. Explicitly acknowledge uncertainty when applicable. Always propose at least one alternative framing. Accept critical debate as normal and preferred. Treat all factual claims as provisional unless cited or clearly justified. Cite when appropriate. Acknowledge when claims rely on inference or incomplete information. Favor accuracy over sounding certain.
+
+check anything online when it feels relevant.  good to compare our thoughts/assumptions with what other people are actually doing and thinking
+
+when asked to share your thoughts (like if user says "wdyt"), then walk it out and talk it out gradually, incrementally, slowly, and thoughtfully.  challenge me so we can succeed overall
+
+dont fall into the trap of equating "implementation" with "low-level".  implementation decisions can be high-level when they affect the system's fundamental behavior
+
+IMPORTANT EDIT INSTRUCTIONS NOTE:
+
+- always use full absolute file paths for edit instructions
+
+- to delete a file, share bash commands with the user in your response.  do not use edit instructions to delete a file
+
 
 === END FILE: /Users/stuart/repos/loaf/replacer/replacer_llm_instructions.md ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
+import type { LoafAction, ParseResult, ParseError } from '../../nesl-action-parser/src/index.js';
+import { parseNeslResponse } from '../../nesl-action-parser/src/index.js';
+import type { FileOpResult } from '../../fs-ops/src/index.js';
+import { load as loadYaml } from 'js-yaml';
+import { readFile } from 'fs/promises';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+export interface ExecutionResult {
+  success: boolean;
+  totalBlocks: number;
+  executedActions: number;
+  results: ActionResult[];
+  parseErrors: ParseError[];
+  fatalError?: string;
+  debug?: {
+    parseDebug?: any;
+  };
+}
+
+export interface ActionResult {
+  seq: number;
+  blockId: string;
+  action: string;
+  params: Record<string, any>;
+  success: boolean;
+  error?: string;
+  data?: any;
+}
+
+export interface LoafOptions {
+  repoPath?: string;
+  gitCommit?: boolean;
+}
+
+export class Loaf {
+  private options: LoafOptions;
+  private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>> | null = null;
+
+  constructor(options: LoafOptions = {}) {
+    this.options = {
+      repoPath: options.repoPath || process.cwd(),
+      gitCommit: options.gitCommit ?? true
+    };
+  }
+
+  /**
+   * Parse and execute all NESL blocks in LLM output
+   * Executes all valid actions sequentially, collecting both successes and failures
+   */
+  async execute(llmOutput: string): Promise<ExecutionResult> {
+    try {
+      // Parse NESL blocks
+      const parseResult = await parseNeslResponse(llmOutput);
+
+      // Debug info captured in parseResult.debug
+
+      // Initialize executors if needed
+      if (!this.executors) {
+        try {
+          await this.initializeExecutors();
+        } catch (error) {
+          return {
+            success: false,
+            totalBlocks: parseResult.summary.totalBlocks,
+            executedActions: 0,
+            results: [],
+            parseErrors: parseResult.errors,
+            fatalError: `Failed to initialize executors: ${error instanceof Error ? error.message : String(error)}`
+          };
+        }
+      }
+
+      // Execute each valid action sequentially
+      const results: ActionResult[] = [];
+      let seq = 1;
+
+      for (const action of parseResult.actions) {
+        const result = await this.executeAction(action, seq++);
+        results.push(result);
+      }
+
+      // Calculate overall success
+      const allActionsSucceeded = results.every(r => r.success);
+      const noParseErrors = parseResult.errors.length === 0;
+
+      return {
+        success: allActionsSucceeded && noParseErrors,
+        totalBlocks: parseResult.summary.totalBlocks,
+        executedActions: results.length,
+        results,
+        parseErrors: parseResult.errors,
+        debug: {
+          parseDebug: parseResult.debug
+        }
+      };
+
+    } catch (error) {
+      // Only truly unexpected errors should reach here
+      return {
+        success: false,
+        totalBlocks: 0,
+        executedActions: 0,
+        results: [],
+        parseErrors: [],
+        fatalError: `Unexpected error in execute: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+
+  /**
+   * Initialize action executors with dynamic imports
+   * Loads routing from unified-design.yaml
+   */
+  private async initializeExecutors(): Promise<void> {
+    this.executors = new Map();
+
+    // Load unified-design.yaml
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = dirname(__filename);
+    const yamlPath = join(__dirname, '../../../../unified-design.yaml');
+    const yamlContent = await readFile(yamlPath, 'utf8');
+    const design = loadYaml(yamlContent) as any;
+
+    // Map executor names to modules
+    const executorModules: Record<string, () => Promise<any>> = {
+      'fs-ops': () => import('../../fs-ops/src/index.js'),
+      'exec': () => import('../../exec/src/index.js')
+    };
+
+    // Load executors on demand
+    const loadedExecutors: Record<string, (action: LoafAction) => Promise<FileOpResult>> = {};
+
+    // Build routing table from YAML
+    for (const [actionName, actionDef] of Object.entries(design.tools)) {
+      const executor = (actionDef as any).executor || this.inferExecutor(actionName, actionDef);
+
+      if (!executor) {
+        console.warn(`No executor defined for action: ${actionName}`);
+        continue;
+      }
+
+      // Load executor module if not already loaded
+      if (!loadedExecutors[executor]) {
+        if (executorModules[executor]) {
+          const module = await executorModules[executor]();
+          // Handle different export names
+          if (executor === 'exec') {
+            loadedExecutors[executor] = module.executeCommand;
+          } else {
+            loadedExecutors[executor] = module.executeFileOperation || module.executeOperation;
+          }
+        } else {
+          // Skip planned but unimplemented executors silently
+          if (!['context', 'git'].includes(executor)) {
+            console.warn(`Unknown executor: ${executor}`);
+          }
+          continue;
+        }
+      }
+
+      this.executors.set(actionName, loadedExecutors[executor]);
+    }
+  }
+
+  /**
+   * Infer executor from action name/type when not explicitly defined
+   * Temporary fallback until all YAML entries have executor field
+   */
+  private inferExecutor(actionName: string, actionDef: any): string | null {
+    // File/dir operations go to fs-ops
+    if (actionName.startsWith('file_') || actionName.startsWith('files_') ||
+      actionName.startsWith('dir_') || ['ls', 'grep', 'glob'].includes(actionName)) {
+      return 'fs-ops';
+    }
+
+    // Exec operations
+    if (actionName === 'exec') {
+      return 'exec';
+    }
+
+    // Context operations (future)
+    if (actionName.startsWith('context_')) {
+      return 'context';
+    }
+
+    // Git operations (future)
+    if (actionName.startsWith('git_') || actionName === 'undo') {
+      return 'git';
+    }
+
+    return null;
+  }
+
+  /**
+   * Execute a single action and format the result
+   * Never throws - all errors returned in ActionResult
+   */
+  private async executeAction(action: LoafAction, seq: number): Promise<ActionResult> {
+    const executor = this.executors?.get(action.action);
+
+    if (!executor) {
+      return {
+        seq,
+        blockId: action.metadata.blockId,
+        action: action.action,
+        params: action.parameters,
+        success: false,
+        error: `Unknown action: ${action.action}`
+      };
+    }
+
+    try {
+      // Add default cwd for exec actions if not specified
+      const enhancedAction = action.action === 'exec' && !action.parameters.cwd
+        ? { ...action, parameters: { ...action.parameters, cwd: this.options.repoPath } }
+        : action;
+
+      const result = await executor(enhancedAction);
+
+      return {
+        seq,
+        blockId: action.metadata.blockId,
+        action: action.action,
+        params: action.parameters,
+        success: result.success,
+        ...(result.error && { error: result.error }),
+        ...(result.data !== undefined && { data: result.data }),
+        // Include exec-specific fields at top level
+        ...(action.action === 'exec' && {
+          data: {
+            stdout: result.stdout,
+            stderr: result.stderr,
+            exit_code: result.exit_code
+          }
+        })
+      };
+
+    } catch (error) {
+      // Executors should never throw, but handle just in case
+      return {
+        seq,
+        blockId: action.metadata.blockId,
+        action: action.action,
+        params: action.parameters,
+        success: false,
+        error: `Unexpected executor error: ${error instanceof Error ? error.message : String(error)}`
+      };
+    }
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/TODO.md ===
+
+**Recommendation:**
+- Use lodash.template for consistency and battle-tested implementation
+- Your spec (escape, defaults, no nesting) aligns with lodash capabilities
+- Default pattern: `${VAR}` with optional `${VAR:-default}`
+
+## Test Strategy for Hooks
+
+Since hooks execute external commands, test with:
+
+1. **Mock commands** - Create test shell scripts:
+```json
+{
+  "name": "basic git flow",
+  "config": {
+    "hooks": {
+      "before": [
+        { "run": "echo 'before' > /tmp/t_hooks/before.txt" }
+      ],
+      "after": [
+        { "run": "echo 'after' > /tmp/t_hooks/after.txt" }
+      ]
+    }
+  },
+  "verify": {
+    "beforeFile": "/tmp/t_hooks/before.txt",
+    "afterFile": "/tmp/t_hooks/after.txt"
+  }
+}
+```
+
+
+3. **Test cases:**
+- Variable interpolation edge cases
+- Command failures with/without continueOnError
+- Timeout behavior
+- Missing variables
+- Shell injection attempts
+
+**Missing piece:** How does loaf integrate hooks? Need to update loaf's API.md to show hooks dependency and call points.
+
+
+## Shell Detection Strategy
+
+Node.js `exec()` accepts a shell option. Default behavior:
+- Unix: `/bin/sh`
+- Windows: `process.env.ComSpec` (typically `cmd.exe`)
+
+## Recommended Implementation
+
+```yaml
+# loaf.yaml
+shell: auto  # auto | cmd | powershell | bash | sh | /path/to/shell
+```
+
+
+Clean Integration: orch would depend on hooks, not implement it:
+
+```ts
+// In orch/src/index.ts
+const hooks = new HooksManager(options.hooks);
+await hooks.runBefore();
+// ... existing execute logic ...
+await hooks.runAfter({ success, changeCount });
+```
+
+https://claude.ai/chat/d344370c-aaf5-46ec-9786-93cc208f7613
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/doc/TODO.md ===
 
