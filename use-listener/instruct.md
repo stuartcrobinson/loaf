@@ -1,5 +1,7 @@
 # NESL Tool API Reference
 
+these are tools that the user will execute on their machine after your response is complete
+
 ## NESL Syntax example 
 
 

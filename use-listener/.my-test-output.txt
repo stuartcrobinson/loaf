@@ -1,14 +1,6 @@
 === LOAF RESULTS ===
-fix1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-fix2 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/hooks/test-data/integration/example-loaf.yml
-fix3 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
-fix4 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
-fix5 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
-fix6 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-fix7 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-fix8 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-fix9 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-fix10 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+abs ✅ file_write /Users/stuart/repos/loaf/proj/comp/security/doc/ABSTRACT.md
+arc ✅ file_write /Users/stuart/repos/loaf/proj/comp/security/doc/ARCH.md
 === END ===
 
 === OUTPUTS ===

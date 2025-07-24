@@ -1,36 +1,4 @@
-📋 Copied to clipboard
-
-=== LOAF RESULTS ===
-abs ✅ file_write /Users/stuart/repos/loaf/proj/comp/security/doc/ABSTRACT.md
-arc ✅ file_write /Users/stuart/repos/loaf/proj/comp/security/doc/ARCH.md
-=== END ===
-
-```sh nesl
-#!nesl [@three-char-SHA-256: abs]
-action = "file_write"
-path = "/Users/stuart/repos/loaf/proj/comp/security/doc/ABSTRACT.md"
-content = <<'EOT_abs'
-# Security
-
-Validates file system paths against configurable allow/deny rules before fs-ops operations execute, preventing unintended file access.
-
-## Overview
-
-The security component provides path validation for all file system operations in loaf. It intercepts fs-ops actions before execution, canonicalizes paths to resolve symlinks and relative references, then checks them against user-defined glob patterns. The component supports separate read and write permissions with a most-specific-match precedence system.
-
-Configuration lives in loaf.yml with four lists: read-allow, read-deny, write-allow, and write-deny. Patterns can be relative (resolved from loaf.yml location) or absolute. The validation process follows symlinks via canonicalization, making rules apply to actual file locations rather than symlink paths. When paths match multiple rules, the most specific pattern wins, enabling fine-grained control like denying a directory while allowing specific subdirectories.
-
-The component integrates at the fs-ops executor level, checking every file operation before it proceeds. Operations requiring multiple permissions (like file_replace_text needing both read and write) must pass all checks. Clear error messages distinguish security violations from operational failures, helping LLMs understand why operations failed.
-EOT_abs
-#!end_abs
-```
-
-```sh nesl
-#!nesl [@three-char-SHA-256: arc]
-action = "file_write"
-path = "/Users/stuart/repos/loaf/proj/comp/security/doc/ARCH.md"
-content = <<'EOT_arc'
-# Security Architecture
+# fs-guard Architecture
 
 ## Design Philosophy
 
@@ -43,7 +11,7 @@ content = <<'EOT_arc'
 - Single validation point for all file system operations
 - No modifications to individual operation handlers
 
-**Rationale**: Clean separation of concerns. Security remains pluggable.
+**Rationale**: Clean separation of concerns. Filesystem guards remains pluggable.
 
 ### Path Resolution Strategy
 1. Canonicalize input path via `fs.realpath()`
@@ -83,7 +51,7 @@ const actionPermissions = {
 
 ### Configuration Schema
 ```yaml
-security:
+fs-guard:
   fs:
     read:
       allow: ["./src/**", "/tmp/**"]
@@ -101,13 +69,13 @@ Relative paths resolved from loaf.yml directory.
 ```typescript
 {
   success: false,
-  error: "Security violation: Write access denied for '/etc/passwd'"
+  error: "fs-guard violation: Write access denied for '/etc/passwd'"
 }
 ```
 
 Not: "EACCES: permission denied" (ambiguous with OS permissions).
 
-**Rationale**: LLM needs to distinguish security policy from system errors.
+**Rationale**: LLM needs to distinguish fs-guard policy from system errors.
 
 ### Canonicalization Failures
 If `fs.realpath()` fails (file doesn't exist yet):
@@ -117,9 +85,8 @@ If `fs.realpath()` fails (file doesn't exist yet):
 **Rationale**: Can't canonicalize paths that don't exist, but need to validate writes creating new files.
 
 ### Default Policy
-No defaults. Empty config = no security checks.
+not sure about this.  maybe defauls is that `/` is denied for everything?  so specific whitelists are needed?  and maybe the current repo is whitelisted?  
 
-**Rationale**: Explicit configuration prevents surprise denials. Users opt into security.
 
 ### TOCTOU Acceptance
 Race condition between canonicalization and operation is unsolvable without filesystem locks.
@@ -131,7 +98,7 @@ Race condition between canonicalization and operation is unsolvable without file
 ### Canonicalization Cache
 Don't cache. Filesystem state changes; cache invalidation is error-prone.
 
-**Rationale**: Correctness over performance for security.
+**Rationale**: Correctness over performance for filesystem guardrail.
 
 ### Pattern Compilation
 Compile glob patterns once at config load, not per check.
@@ -174,13 +141,3 @@ Test cases must verify:
 3. Relative path resolution
 4. Non-existent path handling
 5. Each operation's permission mapping
-
-## Future Considerations
-- Audit logging (who tried to access what)
-- Runtime rule reloading
-- Permission contexts ("sudo mode")
-
-All explicitly out of scope for v1.
-EOT_arc
-#!end_arc
-```

@@ -22,12 +22,15 @@ done
 
 file_list=$(cat <<'EOF'
 
-./unified-design.yaml
-./proj/comp/orch/src/index.ts
-./proj/comp/fs-ops/src/index.ts
-./proj/comp/exec/src/index.ts
-./proj/comp/exec/src/executeCommand.ts
-./proj/comp/orch/doc/ARCH.md
+proj/comp/fs-ops/src/index.ts
+proj/comp/exec/src/index.ts
+unified-design.yaml
+proj/comp/orch/src/index.ts
+xd5_ref.md
+proj/comp/fs-ops/test-data/integration/*.cases.md
+proj/comp/listener/src/formatters.ts
+proj/comp/security/docs/background.md
+proj/comp/fs-ops/doc/ARCH.md
 
 
 
