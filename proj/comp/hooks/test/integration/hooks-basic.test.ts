@@ -160,7 +160,7 @@ vars:
     writeFileSync(yamlPath, yamlContent);
 
     const hooks = new HooksManager();
-    const config = await hooks.loadConfig(yamlPath);
+    const config = await hooks.loadAndSetConfig(yamlPath);
     
     expect(config.version).toBe(1);
     expect(config.vars?.TEST).toBe('value');
@@ -199,4 +199,6 @@ vars:
     expect(existsSync(testFilePath)).toBe(true);
     expect(readFileSync(testFilePath, 'utf8')).toBe('cwd-test');
   });
+
+  
 });

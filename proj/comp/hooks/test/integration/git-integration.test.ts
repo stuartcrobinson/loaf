@@ -79,19 +79,19 @@ path = "${REPO_DIR}/src/feature.js"
 content = "export const feature = () => 'implemented';"
 #!end_gf2`;
 
-    // Execute with hooks - force config reload
-    console.log('\n=== TEST DIAGNOSTICS ===');
-    console.log('REPO_DIR:', REPO_DIR);
-    console.log('loaf.yml exists:', existsSync(join(REPO_DIR, 'loaf.yml')));
+    // // Execute with hooks - force config reload
+    // console.log('\n=== TEST DIAGNOSTICS ===');
+    // console.log('REPO_DIR:', REPO_DIR);
+    // console.log('loaf.yml exists:', existsSync(join(REPO_DIR, 'loaf.yml')));
     
-    // Show loaf.yml content
-    const loafYmlContent = readFileSync(join(REPO_DIR, 'loaf.yml'), 'utf8');
-    console.log('loaf.yml content:');
-    console.log(loafYmlContent);
-    console.log('--- end loaf.yml ---\n');
+    // // Show loaf.yml content
+    // const loafYmlContent = readFileSync(join(REPO_DIR, 'loaf.yml'), 'utf8');
+    // console.log('loaf.yml content:');
+    // console.log(loafYmlContent);
+    // console.log('--- end loaf.yml ---\n');
     
-    // Check if .hook-trace exists before execution
-    console.log('.hook-trace exists before execution:', existsSync(join(REPO_DIR, '.hook-trace')));
+    // // Check if .hook-trace exists before execution
+    // console.log('.hook-trace exists before execution:', existsSync(join(REPO_DIR, '.hook-trace')));
     
     const loaf = new Loaf({ 
       repoPath: REPO_DIR,
@@ -99,29 +99,29 @@ content = "export const feature = () => 'implemented';"
       hooks: undefined  // Explicitly undefined to trigger loaf.yml load
     });
     
-    console.log('\n=== EXECUTING NESL ===');
+    // console.log('\n=== EXECUTING NESL ===');
     const result = await loaf.execute(neslInput);
     
-    // Debug: log the full result to see what's happening
-    console.log('\nExecution result:', JSON.stringify(result, null, 2));
+    // // Debug: log the full result to see what's happening
+    // console.log('\nExecution result:', JSON.stringify(result, null, 2));
     
-    // Check hook trace immediately after execution
-    console.log('\n=== POST-EXECUTION DIAGNOSTICS ===');
-    console.log('.hook-trace exists after execution:', existsSync(join(REPO_DIR, '.hook-trace')));
-    if (existsSync(join(REPO_DIR, '.hook-trace'))) {
-      const traceContent = readFileSync(join(REPO_DIR, '.hook-trace'), 'utf8');
-      console.log('.hook-trace raw content:', JSON.stringify(traceContent));
-      console.log('.hook-trace display:\n' + traceContent);
-    }
+    // // Check hook trace immediately after execution
+    // console.log('\n=== POST-EXECUTION DIAGNOSTICS ===');
+    // console.log('.hook-trace exists after execution:', existsSync(join(REPO_DIR, '.hook-trace')));
+    // if (existsSync(join(REPO_DIR, '.hook-trace'))) {
+    //   const traceContent = readFileSync(join(REPO_DIR, '.hook-trace'), 'utf8');
+    //   console.log('.hook-trace raw content:', JSON.stringify(traceContent));
+    //   console.log('.hook-trace display:\n' + traceContent);
+    // }
     
-    // Check git status
-    console.log('\nGit status:');
-    console.log(execSync('git status --porcelain', { cwd: REPO_DIR, encoding: 'utf8' }));
+    // // Check git status
+    // console.log('\nGit status:');
+    // console.log(execSync('git status --porcelain', { cwd: REPO_DIR, encoding: 'utf8' }));
     
-    // Check for hook errors in result
-    if (result.hookErrors) {
-      console.log('\nHook errors found:', result.hookErrors);
-    }
+    // // Check for hook errors in result
+    // if (result.hookErrors) {
+    //   console.log('\nHook errors found:', result.hookErrors);
+    // }
     
     // Verify execution succeeded
     expect(result.success).toBe(true);

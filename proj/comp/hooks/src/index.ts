@@ -53,7 +53,6 @@ export class HooksManager {
 
   async runBefore(context?: HookContext): Promise<HookResult> {
     const commands = this.config.hooks?.before || [];
-    console.log('[HOOKS] runBefore called. Commands:', commands);
     return this.runCommands(commands, context);
   }
 
@@ -62,16 +61,16 @@ export class HooksManager {
     return this.runCommands(commands, context);
   }
 
-  async loadConfig(path: string): Promise<HooksConfig> {
+  async loadAndSetConfig(path: string): Promise<HooksConfig> {
     try {
       const content = await readFile(path, 'utf8');
       const config = parseYamlConfig(content);
-      
+
       const validation = validateConfig(config);
       if (!validation.valid) {
         throw new Error(`Invalid config: ${validation.error}`);
       }
-      
+
       this.config = config;
       return config;
     } catch (error: any) {
@@ -84,14 +83,12 @@ export class HooksManager {
 
   private async runCommands(commands: Command[], context?: HookContext): Promise<HookResult> {
     const results: CommandResult[] = [];
-    console.log('[HOOKS] runCommands called with', commands.length, 'commands');
-    
+
     for (const cmd of commands) {
-      console.log('[HOOKS] Executing command:', cmd.run);
       try {
         // Interpolate variables
         const interpolatedCmd = interpolateCommand(cmd, this.config.vars || {}, context);
-        
+
         // Validate command
         const validation = validateCommand(interpolatedCmd);
         if (!validation.valid) {
@@ -101,39 +98,21 @@ export class HooksManager {
             error: validation.error || 'Invalid command'
           };
           results.push(result);
-          
+
           if (!cmd.continueOnError) {
             break;
           }
           continue;
         }
-        
+
         // Execute command
         const result = await this.executeCommand(interpolatedCmd);
-        console.log(`[HOOKS] Command result for "${cmd.run}":`, {
-          success: result.success,
-          stdout: result.stdout?.slice(0, 100),
-          stderr: result.stderr?.slice(0, 100),
-          error: result.error
-        });
-        
-        // Debug: Check .hook-trace file after each command
-        if (cmd.run.includes('.hook-trace')) {
-          const { existsSync, readFileSync } = await import('fs');
-          const tracePath = `${this.repoPath}/.hook-trace`;
-          if (existsSync(tracePath)) {
-            const content = readFileSync(tracePath, 'utf8');
-            console.log(`[HOOKS] After "${cmd.run}", .hook-trace contains:`, JSON.stringify(content));
-          } else {
-            console.log(`[HOOKS] After "${cmd.run}", .hook-trace does not exist`);
-          }
-        }
-        
+
         results.push({
           command: cmd.run,
           ...result
         });
-        
+
         if (!result.success && !cmd.continueOnError) {
           break;
         }
@@ -144,13 +123,13 @@ export class HooksManager {
           error: error.message
         };
         results.push(result);
-        
+
         if (!cmd.continueOnError) {
           break;
         }
       }
     }
-    
+
     return formatHookResult(results);
   }
 
@@ -162,7 +141,7 @@ export class HooksManager {
       encoding: 'utf8' as const,
       shell: true  // Ensure shell interpretation for redirects
     };
-    
+
     try {
       const { stdout, stderr } = await execAsync(cmd.run, options);
       return {

@@ -70,13 +70,10 @@ export class Loaf {
     try {
       // Initialize hooks if enabled and not already initialized
       if (this.options.enableHooks && !this.hooksManager) {
-        console.log('[ORCH] Initializing hooks...');
         try {
           const initResult = await this.initializeHooks();
           configCreated = initResult.configCreated || false;
-          console.log('[ORCH] Hooks initialized. HooksManager exists:', !!this.hooksManager);
         } catch (error) {
-          console.log('[ORCH] Hook initialization failed:', error);
           return {
             success: false,
             totalBlocks: 0,
@@ -90,10 +87,8 @@ export class Loaf {
 
       // Run before hooks
       if (this.hooksManager) {
-        console.log('[ORCH] Running before hooks...');
         try {
           const beforeResult = await this.hooksManager.runBefore();
-          console.log('[ORCH] Before hooks result:', beforeResult);
           if (!beforeResult.success) {
             // Before hook failure is fatal
             return {
@@ -109,7 +104,6 @@ export class Loaf {
             };
           }
         } catch (error) {
-          console.log('[ORCH] Before hooks error:', error);
           return {
             success: false,
             totalBlocks: 0,
@@ -119,8 +113,6 @@ export class Loaf {
             fatalError: `Before hooks threw unexpected error: ${error instanceof Error ? error.message : String(error)}`
           };
         }
-      } else {
-        console.log('[ORCH] No hooksManager - skipping before hooks');
       }
 
       // Parse NESL blocks
@@ -165,19 +157,19 @@ export class Loaf {
           const modifiedFiles = new Set<string>();
           const operations: string[] = [];
           const errors: string[] = [];
-          
+
           for (const result of results) {
             if (result.action.startsWith('file_') && result.params.path) {
               modifiedFiles.add(result.params.path);
             }
-            
+
             operations.push(`${result.action}${result.success ? '' : ' (failed)'}`);
-            
+
             if (!result.success && result.error) {
               errors.push(`${result.action}: ${result.error}`);
             }
           }
-          
+
           const afterContext: HookContext = {
             success: executionSuccess,
             executedActions: results.length,
@@ -187,7 +179,7 @@ export class Loaf {
             errors: errors.join('; '),
             errorCount: errors.length
           };
-          
+
           const afterResult = await this.hooksManager.runAfter(afterContext);
           if (!afterResult.success) {
             // After hook failure is non-fatal but recorded
@@ -231,7 +223,7 @@ export class Loaf {
    */
   private async initializeHooks(): Promise<{ configCreated: boolean }> {
     let configCreated = false;
-    
+
     if (this.options.hooks) {
       // Use provided configuration
       // Wrap the hooks in the expected HooksConfig structure
@@ -245,11 +237,9 @@ export class Loaf {
       const loafYmlPath = join(this.options.repoPath!, 'loaf.yml');
       try {
         await access(loafYmlPath);
-        console.log('[ORCH] Found loaf.yml at:', loafYmlPath);
         this.hooksManager = new HooksManager(undefined, this.options.repoPath);
-        const loadedConfig = await this.hooksManager.loadConfig(loafYmlPath);
-        console.log('[ORCH] Loaded config:', JSON.stringify(loadedConfig, null, 2));
-        // Don't create a new instance - loadConfig updates the existing one
+        await this.hooksManager.loadAndSetConfig(loafYmlPath);
+        // Don't create a new instance - loadAndSetConfig updates the existing one
       } catch (error: any) {
         if (error.code === 'ENOENT' && this.options.createConfigIfMissing) {
           // Create starter config
@@ -257,14 +247,13 @@ export class Loaf {
           if (configCreated) {
             // Load the newly created config
             this.hooksManager = new HooksManager(undefined, this.options.repoPath);
-            const config = await this.hooksManager.loadConfig(loafYmlPath);
-            this.hooksManager = new HooksManager(config, this.options.repoPath);
+            await this.hooksManager.loadAndSetConfig(loafYmlPath);
           }
         }
         // If not ENOENT or createConfigIfMissing is false, hooks remain disabled
       }
     }
-    
+
     return { configCreated };
   }
 
