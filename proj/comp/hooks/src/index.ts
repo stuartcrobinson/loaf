@@ -11,10 +11,8 @@ import type { CommandResult } from './types.js';
 // Public types
 export interface HooksConfig {
   version?: number;
-  hooks?: {
-    before?: Command[];
-    after?: Command[];
-  };
+  before?: Command[];
+  after?: Command[];
   vars?: Record<string, string>;
 }
 
@@ -44,20 +42,22 @@ const execAsync = promisify(exec);
 // Main class
 export class HooksManager {
   private config: HooksConfig;
+  private vars: Record<string, string>;
   private repoPath: string;
 
-  constructor(config?: HooksConfig, repoPath?: string) {
-    this.config = config || { hooks: {}, vars: {} };
+  constructor(config?: HooksConfig, vars?: Record<string, string>, repoPath?: string) {
+    this.config = config || {};
+    this.vars = vars || {};
     this.repoPath = repoPath || process.cwd();
   }
 
   async runBefore(context?: HookContext): Promise<HookResult> {
-    const commands = this.config.hooks?.before || [];
+    const commands = this.config.before || [];
     return this.runCommands(commands, context);
   }
 
   async runAfter(context?: HookContext): Promise<HookResult> {
-    const commands = this.config.hooks?.after || [];
+    const commands = this.config.after || [];
     return this.runCommands(commands, context);
   }
 
@@ -87,7 +87,7 @@ export class HooksManager {
     for (const cmd of commands) {
       try {
         // Interpolate variables
-        const interpolatedCmd = interpolateCommand(cmd, this.config.vars || {}, context);
+        const interpolatedCmd = interpolateCommand(cmd, this.vars, context);
 
         // Validate command
         const validation = validateCommand(interpolatedCmd);

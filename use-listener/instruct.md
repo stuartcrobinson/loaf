@@ -45,7 +45,7 @@ EOT_fw1
 #!end_fw1
 ```
 
-### `file_replace_text` - Replace one occurrence
+### `file_replace_text` - Replace the only one occurrence
 ```sh nesl
 #!nesl [@three-char-SHA-256: fr2]
 action = "file_replace_text"
@@ -55,6 +55,20 @@ debug = false
 EOT_fr2
 new_text = <<'EOT_fr2'
 debug = true
+EOT_fr2
+#!end_fr2
+```
+
+### `file_replace_all_text` - Replace the only one occurrence
+```sh nesl
+#!nesl [@three-char-SHA-256: fr2]
+action = "file_replace_text"
+path = "/etc/config.ini"
+old_text = <<'EOT_fr2'
+//this bit of code exists in the file several times
+EOT_fr2
+new_text = <<'EOT_fr2'
+//replacement text to replace in all locations
 EOT_fr2
 #!end_fr2
 ```

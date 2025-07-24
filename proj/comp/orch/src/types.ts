@@ -3,6 +3,7 @@ import type { HooksConfig } from '../../hooks/src/index.js';
 export interface LoafConfig {
   version: number;
   hooks?: HooksConfig;
+  vars?: Record<string, string>;
   'fs-guard'?: FsGuardConfig;
   'exec-guard'?: ExecGuardConfig; // future
 }
