@@ -22,3 +22,31 @@ The component executes commands sequentially, failing fast on errors unless expl
 - The system SHALL fail fast on command errors unless continueOnError is set
 - The system SHALL respect per-command timeout values
 - The system SHALL load configuration from loaf.yml if present
+
+# example
+
+Example .clada.yml:
+
+# Clada configuration
+
+```yaml
+version: 1  # For future compatibility
+
+hooks:
+  before:
+    - run: git stash --include-untracked
+      
+  after:
+    - run: git add -A
+    - run: git commit -m "${COMMIT_MSG}"
+    - run: git push
+      continueOnError: true
+      timeout: 10000  # 10s for slow networks
+
+# Variables available in commands
+vars:
+  COMMIT_MSG: "AI-assisted changes"
+```
+
+https://claude.ai/chat/d344370c-aaf5-46ec-9786-93cc208f7613
+https://claude.ai/chat/4bdbd3d3-d3e6-4249-bce8-d19f882b2fba

@@ -1,19 +1,18 @@
 
 #!/bin/bash
-# https://claude.ai/chat/89fcf145-9202-4b4f-84db-322ae77a5449
-# https://chatgpt.com/c/687f8e06-9f44-8324-b817-4536ca8c3b9c
 
 output_file="snapshot_selections.txt"
-copy_files_mode=false
+copy_paths_mode=false
+prepend_line_numbers=false
 
-# Check for flag
-if [[ "$1" == "p" ]]; then  # p for paths
-  copy_files_mode=true
-fi
+for arg in "$@"; do
+  [[ "$arg" == "n" ]] && prepend_line_numbers=true
+  [[ "$arg" == "p" ]] && copy_paths_mode=true
+done
+
+
 
 file_list=$(cat <<'EOF'
-
-use-listener/test-listener-live.ts use-listener/my-test-commands.md proj/comp/listener/src/formatters.ts proj/comp/listener/src/listener.ts replacer/replacer_llm_instructions.md
 
 /Users/stuart/repos/loaf/replacer/replacer_llm_instructions.md
 
@@ -28,7 +27,7 @@ unique_files=$(echo "$file_list" | tr ' \n' '\n' | grep -v '^$' | xargs -I{} rea
 # Count files
 file_count=$(echo "$unique_files" | wc -l | tr -d ' ')
 
-if $copy_files_mode; then
+if $copy_paths_mode; then
   # Copy the list of file paths directly to clipboard
   echo "$unique_files" | xargs -I{} realpath "{}" | pbcopy
   echo "📋 Copied list of $file_count file paths to clipboard."
@@ -36,7 +35,12 @@ else
   echo "$unique_files" | while read -r file; do
     {
       echo "=== START FILE: $file ==="
-      cat "$file"
+      if $prepend_line_numbers; then
+        nl -ba -n rn -s ':' -w 4 "$file"
+      else
+        cat "$file"
+      fi
+
       echo
       echo "=== END FILE: $file ==="
       echo
@@ -64,3 +68,6 @@ fi
 # # # # # # # # /Users/stuart/repos/loaf/proj/doc/API.md
 # # # # # # # # /Users/stuart/repos/loaf/proj/doc/ARCH.md
 # # # # # # # # /Users/stuart/repos/loaf/proj/doc/TODO.md
+
+# https://claude.ai/chat/89fcf145-9202-4b4f-84db-322ae77a5449
+# https://chatgpt.com/c/687f8e06-9f44-8324-b817-4536ca8c3b9c

@@ -1,7 +1,7 @@
 {
   "name": "loaf",
   "version": "0.1.0",
-  "description": "Common LLM Actions Desktop Actuator",
+  "description": "LLM Output Actuation Framework",
   "type": "module",
   "engines": {
     "node": ">=20.0.0"
