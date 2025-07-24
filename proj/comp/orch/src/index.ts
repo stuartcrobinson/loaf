@@ -1,13 +1,18 @@
 import type { LoafAction, ParseResult, ParseError } from '../../nesl-action-parser/src/index.js';
 import { parseNeslResponse } from '../../nesl-action-parser/src/index.js';
 import type { FileOpResult } from '../../fs-ops/src/index.js';
+import { FsOpsExecutor } from '../../fs-ops/src/index.js';
 import type { HooksConfig, HookContext, HookResult } from '../../hooks/src/index.js';
 import { HooksManager } from '../../hooks/src/index.js';
+import { FsGuard } from '../../fs-guard/src/index.js';
+import { ExecExecutor } from '../../exec/src/index.js';
 import { load as loadYaml } from 'js-yaml';
 import { readFile, access } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createStarterConfig } from './createStarterConfig.js';
+import { loadConfig } from './loadConfig.js';
+import type { LoafConfig } from './types.js';
 
 export interface ExecutionResult {
   success: boolean;
@@ -48,6 +53,7 @@ export class Loaf {
   private options: LoafOptions;
   private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>> | null = null;
   private hooksManager: HooksManager | null = null;
+  private config: LoafConfig | null = null;
 
   constructor(options: LoafOptions = {}) {
     this.options = {
@@ -219,38 +225,41 @@ export class Loaf {
 
   /**
    * Initialize hooks manager with configuration
-   * Loads from options or loaf.yml file
    */
   private async initializeHooks(): Promise<{ configCreated: boolean }> {
     let configCreated = false;
 
+    // Ensure config is loaded
+    if (!this.config) {
+      this.config = await loadConfig(this.options.repoPath!);
+    }
+
     if (this.options.hooks) {
       // Use provided configuration
-      // Wrap the hooks in the expected HooksConfig structure
       const hooksConfig: HooksConfig = {
         hooks: this.options.hooks,
         vars: {}
       };
       this.hooksManager = new HooksManager(hooksConfig, this.options.repoPath);
-    } else {
-      // Try to load from loaf.yml
+    } else if (this.config.hooks) {
+      // Use hooks from loaded config
+      this.hooksManager = new HooksManager(this.config.hooks, this.options.repoPath);
+    } else if (this.options.createConfigIfMissing) {
+      // Create starter config if missing
       const loafYmlPath = join(this.options.repoPath!, 'loaf.yml');
       try {
         await access(loafYmlPath);
-        this.hooksManager = new HooksManager(undefined, this.options.repoPath);
-        await this.hooksManager.loadAndSetConfig(loafYmlPath);
-        // Don't create a new instance - loadAndSetConfig updates the existing one
       } catch (error: any) {
-        if (error.code === 'ENOENT' && this.options.createConfigIfMissing) {
-          // Create starter config
+        if (error.code === 'ENOENT') {
           configCreated = await createStarterConfig(this.options.repoPath!);
           if (configCreated) {
-            // Load the newly created config
-            this.hooksManager = new HooksManager(undefined, this.options.repoPath);
-            await this.hooksManager.loadAndSetConfig(loafYmlPath);
+            // Reload config
+            this.config = await loadConfig(this.options.repoPath!);
+            if (this.config.hooks) {
+              this.hooksManager = new HooksManager(this.config.hooks, this.options.repoPath);
+            }
           }
         }
-        // If not ENOENT or createConfigIfMissing is false, hooks remain disabled
       }
     }
 
@@ -258,57 +267,52 @@ export class Loaf {
   }
 
   /**
-   * Initialize action executors with dynamic imports
-   * Loads routing from unified-design.yaml
+   * Initialize action executors with configuration
    */
   private async initializeExecutors(): Promise<void> {
-    this.executors = new Map();
+    // Load configuration
+    this.config = await loadConfig(this.options.repoPath!);
 
-    // Load unified-design.yaml
+    // Create fs-guard
+    const fsGuard = new FsGuard(
+      this.config['fs-guard'] || {
+        allowed: [`${this.options.repoPath}/**`, '/tmp/**'],
+        denied: ['/**/.git/**', '/**/.ssh/**', '/etc/**', '/sys/**', '/proc/**']
+      },
+      this.options.repoPath!
+    );
+
+    // Create executors
+    const fsOps = new FsOpsExecutor(fsGuard);
+    const exec = new ExecExecutor();
+
+    // Load unified-design.yaml for routing
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = dirname(__filename);
     const yamlPath = join(__dirname, '../../../../unified-design.yaml');
     const yamlContent = await readFile(yamlPath, 'utf8');
     const design = loadYaml(yamlContent) as any;
 
-    // Map executor names to modules
-    const executorModules: Record<string, () => Promise<any>> = {
-      'fs-ops': () => import('../../fs-ops/src/index.js'),
-      'exec': () => import('../../exec/src/index.js')
-    };
-
-    // Load executors on demand
-    const loadedExecutors: Record<string, (action: LoafAction) => Promise<FileOpResult>> = {};
-
     // Build routing table from YAML
+    this.executors = new Map();
+
     for (const [actionName, actionDef] of Object.entries(design.tools)) {
-      const executor = (actionDef as any).executor || this.inferExecutor(actionName, actionDef);
+      const executorName = (actionDef as any).executor || this.inferExecutor(actionName, actionDef);
 
-      if (!executor) {
-        console.warn(`No executor defined for action: ${actionName}`);
-        continue;
+      switch (executorName) {
+        case 'fs-ops':
+          this.executors.set(actionName, (action) => fsOps.execute(action));
+          break;
+        case 'exec':
+          this.executors.set(actionName, (action) => exec.execute(action));
+          break;
+        // Skip unimplemented executors
+        case 'context':
+        case 'git':
+          break;
+        default:
+          console.warn(`Unknown executor: ${executorName} for action: ${actionName}`);
       }
-
-      // Load executor module if not already loaded
-      if (!loadedExecutors[executor]) {
-        if (executorModules[executor]) {
-          const module = await executorModules[executor]();
-          // Handle different export names
-          if (executor === 'exec') {
-            loadedExecutors[executor] = module.executeCommand;
-          } else {
-            loadedExecutors[executor] = module.executeFileOperation || module.executeOperation;
-          }
-        } else {
-          // Skip planned but unimplemented executors silently
-          if (!['context', 'git'].includes(executor)) {
-            console.warn(`Unknown executor: ${executor}`);
-          }
-          continue;
-        }
-      }
-
-      this.executors.set(actionName, loadedExecutors[executor]);
     }
   }
 

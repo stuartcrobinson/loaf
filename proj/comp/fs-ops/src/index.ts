@@ -5,6 +5,7 @@
  */
 
 import type { LoafAction } from '../../nesl-action-parser/src/index.js';
+import type { FsGuard } from '../../fs-guard/src/index.js';
 import { writeFile, mkdir, unlink, rename, readFile } from 'fs/promises';
 import { dirname } from 'path';
 import { formatNodeError } from './formatNodeError.js';
@@ -31,40 +32,68 @@ export class FileOpError extends Error {
 }
 
 /**
- * Execute a file system operation from a parsed NESL action
- * Never throws - all errors returned in result
+ * File system operations executor with security guard
  */
-export async function executeFileOperation(action: LoafAction): Promise<FileOpResult> {
-  try {
-    const handler = actionHandlers[action.action];
+export class FsOpsExecutor {
+  private handlers: Map<string, (action: LoafAction) => Promise<FileOpResult>>;
 
+  constructor(private guard: FsGuard) {
+    this.handlers = new Map([
+      ['file_write', this.handleFileWrite.bind(this)],
+      ['file_replace_text', this.handleFileReplaceText.bind(this)],
+      ['file_replace_all_text', this.handleFileReplaceAllText.bind(this)],
+      ['file_delete', this.handleFileDelete.bind(this)],
+      ['file_move', this.handleFileMove.bind(this)],
+      ['file_read', this.handleFileRead.bind(this)],
+      ['files_read', this.handleFilesRead.bind(this)],
+      ['file_read_numbered', this.handleFileReadNumbered.bind(this)],
+      ['file_replace_lines', this.handleFileReplaceLines.bind(this)],
+      ['dir_create', this.handleDirCreate.bind(this)],
+      ['dir_delete', this.handleDirDelete.bind(this)],
+      ['ls', this.handleLs.bind(this)],
+      ['grep', this.handleGrep.bind(this)],
+      ['glob', this.handleGlob.bind(this)]
+    ]);
+  }
 
+  /**
+   * Execute a file system operation with guard checks
+   */
+  async execute(action: LoafAction): Promise<FileOpResult> {
+    try {
+      // Check fs-guard permissions first
+      const guardResult = await this.guard.check(action);
+      if (!guardResult.allowed) {
+        return {
+          success: false,
+          error: `fs-guard violation: ${guardResult.reason}`
+        };
+      }
 
-    if (!handler) {
+      const handler = this.handlers.get(action.action);
+      if (!handler) {
+        return {
+          success: false,
+          error: `Unknown action: ${action.action}`
+        };
+      }
+
+      return await handler(action);
+    } catch (error: any) {
+      // This should never happen - handlers should catch their own errors
       return {
         success: false,
-        error: `Unknown action: ${action.action}`
+        error: `Unexpected error in execute: ${error.message}`
       };
     }
-
-    const result = await handler(action);
-    return result;
-
-  } catch (error: any) {
-    // This should never happen - handlers should catch their own errors
-    return {
-      success: false,
-      error: `Unexpected error in executeFileOperation: ${error.message}`
-    };
   }
-}
 
-/**
- * Handle file_move action - moves/renames a file
- * Creates parent directories for destination if needed
- * Overwrites destination if it exists
- */
-async function handleFileMove(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_move action - moves/renames a file
+   * Creates parent directories for destination if needed
+   * Overwrites destination if it exists
+   */
+  private async handleFileMove(action: LoafAction): Promise<FileOpResult> {
   const { old_path, new_path } = action.parameters;
 
   try {
@@ -110,10 +139,10 @@ async function handleFileMove(action: LoafAction): Promise<FileOpResult> {
   }
 }
 
-/**
- * Handle file_delete action - removes a file
- */
-async function handleFileDelete(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_delete action - removes a file
+   */
+  private async handleFileDelete(action: LoafAction): Promise<FileOpResult> {
   const { path } = action.parameters;
 
   try {
@@ -134,11 +163,11 @@ async function handleFileDelete(action: LoafAction): Promise<FileOpResult> {
   }
 }
 
-/**
- * Handle file_write action - writes/creates/overwrites a file with content
- * Automatically creates parent directories if needed
- */
-async function handleFileWrite(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_write action - writes/creates/overwrites a file with content
+   * Automatically creates parent directories if needed
+   */
+  private async handleFileWrite(action: LoafAction): Promise<FileOpResult> {
   const { path, content } = action.parameters;
 
   try {
@@ -173,10 +202,10 @@ async function handleFileWrite(action: LoafAction): Promise<FileOpResult> {
   }
 }
 
-/**
- * Handle file_read action - reads file content
- */
-async function handleFileRead(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_read action - reads file content
+   */
+  private async handleFileRead(action: LoafAction): Promise<FileOpResult> {
   const { path } = action.parameters;
 
   try {
@@ -198,13 +227,13 @@ async function handleFileRead(action: LoafAction): Promise<FileOpResult> {
   }
 }
 
-/**
- * Handle file_read_numbered action - reads file content with line numbers
- * Returns specified lines with line numbers prepended
- * If lines parameter is missing, reads all lines
- * If some lines are out of range, returns available content with error
- */
-async function handleFileReadNumbered(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_read_numbered action - reads file content with line numbers
+   * Returns specified lines with line numbers prepended
+   * If lines parameter is missing, reads all lines
+   * If some lines are out of range, returns available content with error
+   */
+  private async handleFileReadNumbered(action: LoafAction): Promise<FileOpResult> {
   const { path, lines, delimiter = ": " } = action.parameters;
 
   try {
@@ -249,12 +278,12 @@ async function handleFileReadNumbered(action: LoafAction): Promise<FileOpResult>
   }
 }
 
-/**
- * Handle file_replace_lines action - replaces specified lines in a file
- * Supports single line ("4") or range ("23-43") specifications
- * Preserves line endings and handles edge cases
- */
-async function handleFileReplaceLines(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_replace_lines action - replaces specified lines in a file
+   * Supports single line ("4") or range ("23-43") specifications
+   * Preserves line endings and handles edge cases
+   */
+  private async handleFileReplaceLines(action: LoafAction): Promise<FileOpResult> {
   const { path, lines, new_content } = action.parameters;
 
   try {
@@ -397,12 +426,12 @@ async function handleFileReplaceLines(action: LoafAction): Promise<FileOpResult>
   }
 }
 
-/**
- * Handle files_read action - reads multiple files and returns their contents
- * Parses multi-line paths parameter, one absolute path per line
- * Returns an array of file contents in the same order as the paths
- */
-async function handleFilesRead(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle files_read action - reads multiple files and returns their contents
+   * Parses multi-line paths parameter, one absolute path per line
+   * Returns an array of file contents in the same order as the paths
+   */
+  private async handleFilesRead(action: LoafAction): Promise<FileOpResult> {
   const { paths } = action.parameters;
 
   // Parse the multi-line paths string
@@ -457,11 +486,11 @@ async function handleFilesRead(action: LoafAction): Promise<FileOpResult> {
   };
 }
 
-/**
- * Handle file_replace_text action - replaces EXACTLY ONE occurrence
- * Fails if old_text appears 0 or 2+ times
- */
-async function handleFileReplaceText(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_replace_text action - replaces EXACTLY ONE occurrence
+   * Fails if old_text appears 0 or 2+ times
+   */
+  private async handleFileReplaceText(action: LoafAction): Promise<FileOpResult> {
   const { path, old_text, new_text } = action.parameters;
 
   // Validate old_text is not empty
@@ -530,11 +559,11 @@ async function handleFileReplaceText(action: LoafAction): Promise<FileOpResult> 
   }
 }
 
-/**
- * Handle file_replace_all_text action - replaces all occurrences
- * If count provided, validates exact match
- */
-async function handleFileReplaceAllText(action: LoafAction): Promise<FileOpResult> {
+  /**
+   * Handle file_replace_all_text action - replaces all occurrences
+   * If count provided, validates exact match
+   */
+  private async handleFileReplaceAllText(action: LoafAction): Promise<FileOpResult> {
   const { path, old_text, new_text, count } = action.parameters;
 
   // Validate old_text is not empty
@@ -599,87 +628,31 @@ async function handleFileReplaceAllText(action: LoafAction): Promise<FileOpResul
   }
 }
 
-// Internal function stubs for each operation
-
-async function createFile(path: string, content: string): Promise<void> {
-  throw new Error('Not implemented');
-}
-
-
-
-async function replaceTextInFile(path: string, oldText: string, newText: string, count?: number): Promise<number> {
-  throw new Error('Not implemented');
-}
-
-async function deleteFile(path: string): Promise<void> {
-  throw new Error('Not implemented');
-}
-
-async function moveFile(oldPath: string, newPath: string): Promise<void> {
-  throw new Error('Not implemented');
-}
-
-async function readFileContent(path: string): Promise<string> {
-  throw new Error('Not implemented');
-}
-
-async function createDirectory(path: string): Promise<void> {
-  throw new Error('Not implemented');
-}
-
-async function deleteDirectory(path: string): Promise<void> {
-  throw new Error('Not implemented');
-}
-
-interface DirEntry {
-  name: string;
-  type: 'file' | 'directory';
-  size: number;
-  modified: Date;
-}
-
-async function listDirectory(path: string): Promise<DirEntry[]> {
-  throw new Error('Not implemented');
-}
-
-interface GrepResult {
-  file: string;
-  line_number: number;
-  line: string;
-}
-
-async function searchFiles(pattern: string, path: string, include?: string): Promise<GrepResult[]> {
-  throw new Error('Not implemented');
-}
-
-async function globFiles(pattern: string, basePath: string): Promise<string[]> {
-  throw new Error('Not implemented');
-}
-
-// Action handler mapping
-const actionHandlers: Record<string, (action: LoafAction) => Promise<FileOpResult>> = {
-  'file_write': handleFileWrite,
-  'file_replace_text': handleFileReplaceText,
-  'file_replace_all_text': handleFileReplaceAllText,
-  'file_delete': handleFileDelete,
-  'file_move': handleFileMove,
-  'file_read': handleFileRead,
-  'files_read': handleFilesRead,
-  'file_read_numbered': handleFileReadNumbered,
-  'file_replace_lines': handleFileReplaceLines,
-  'dir_create': async (action) => {
-    return { success: false, error: 'Not implemented' };
-  },
-  'dir_delete': async (action) => {
-    return { success: false, error: 'Not implemented' };
-  },
-  'ls': async (action) => {
-    return { success: false, error: 'Action not implemented: ls' };
-  },
-  'grep': async (action) => {
-    return { success: false, error: 'Not implemented' };
-  },
-  'glob': async (action) => {
+  private async handleDirCreate(action: LoafAction): Promise<FileOpResult> {
     return { success: false, error: 'Not implemented' };
   }
-};
+
+  private async handleDirDelete(action: LoafAction): Promise<FileOpResult> {
+    return { success: false, error: 'Not implemented' };
+  }
+
+  private async handleLs(action: LoafAction): Promise<FileOpResult> {
+    return { success: false, error: 'Action not implemented: ls' };
+  }
+
+  private async handleGrep(action: LoafAction): Promise<FileOpResult> {
+    return { success: false, error: 'Not implemented' };
+  }
+
+  private async handleGlob(action: LoafAction): Promise<FileOpResult> {
+    return { success: false, error: 'Not implemented' };
+  }
+}
+
+/**
+ * Legacy function export for backward compatibility
+ * @deprecated Use FsOpsExecutor class instead
+ */
+export async function executeFileOperation(action: LoafAction): Promise<FileOpResult> {
+  throw new Error('Direct function call deprecated. Use FsOpsExecutor class.');
+}

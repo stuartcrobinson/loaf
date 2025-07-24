@@ -4,6 +4,24 @@ import { join } from 'path';
 const STARTER_LOAF_YML = `# Loaf configuration
 version: 1
 
+# File system guard configuration
+fs-guard:
+  # Allowed paths (supports glob patterns)
+  # Relative paths are resolved from this config file's location
+  allowed:
+    - "./**"           # All files in project
+    - "/tmp/**"        # Temporary files
+  
+  # Denied paths (more specific rules override less specific)
+  denied:
+    - "**/.git/**"     # Git internals
+    - "**/.ssh/**"     # SSH keys
+    - "**/node_modules/**"  # Dependencies
+  
+  # Whether to follow symlinks (default: false)
+  followSymlinks: false
+
+# Git hooks configuration
 hooks:
   before: []
   after: []
