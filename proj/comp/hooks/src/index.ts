@@ -53,6 +53,7 @@ export class HooksManager {
 
   async runBefore(context?: HookContext): Promise<HookResult> {
     const commands = this.config.hooks?.before || [];
+    console.log('[HOOKS] runBefore called. Commands:', commands);
     return this.runCommands(commands, context);
   }
 
@@ -83,8 +84,10 @@ export class HooksManager {
 
   private async runCommands(commands: Command[], context?: HookContext): Promise<HookResult> {
     const results: CommandResult[] = [];
+    console.log('[HOOKS] runCommands called with', commands.length, 'commands');
     
     for (const cmd of commands) {
+      console.log('[HOOKS] Executing command:', cmd.run);
       try {
         // Interpolate variables
         const interpolatedCmd = interpolateCommand(cmd, this.config.vars || {}, context);
@@ -107,6 +110,25 @@ export class HooksManager {
         
         // Execute command
         const result = await this.executeCommand(interpolatedCmd);
+        console.log(`[HOOKS] Command result for "${cmd.run}":`, {
+          success: result.success,
+          stdout: result.stdout?.slice(0, 100),
+          stderr: result.stderr?.slice(0, 100),
+          error: result.error
+        });
+        
+        // Debug: Check .hook-trace file after each command
+        if (cmd.run.includes('.hook-trace')) {
+          const { existsSync, readFileSync } = await import('fs');
+          const tracePath = `${this.repoPath}/.hook-trace`;
+          if (existsSync(tracePath)) {
+            const content = readFileSync(tracePath, 'utf8');
+            console.log(`[HOOKS] After "${cmd.run}", .hook-trace contains:`, JSON.stringify(content));
+          } else {
+            console.log(`[HOOKS] After "${cmd.run}", .hook-trace does not exist`);
+          }
+        }
+        
         results.push({
           command: cmd.run,
           ...result
@@ -137,7 +159,8 @@ export class HooksManager {
     const options = {
       cwd: cmd.cwd || this.repoPath,
       timeout,
-      encoding: 'utf8' as const
+      encoding: 'utf8' as const,
+      shell: true  // Ensure shell interpretation for redirects
     };
     
     try {

@@ -5,8 +5,10 @@ const STARTER_LOAF_YML = `# Loaf configuration
 version: 1
 
 hooks:
-  # Uncomment and modify these examples as needed
+  before: []
+  after: []
   
+  # Example hooks (uncomment to use):
   # before:
   #   - run: git stash --include-untracked
   #     continueOnError: false

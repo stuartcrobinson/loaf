@@ -1,14 +1,9 @@
-
-IMPORTANT EDIT INSTRUCTIONS NOTE:
-
-- always use full absolute file paths for edit instructions
-
-use the following syntax in your response so the user can execute these actions once your response is complete.
-
 # NESL Tool API Reference
 
-## Syntax
-```sh
+## NESL Syntax example 
+
+
+```sh nesl
 #!nesl [@three-char-SHA-256: q8r]
 action = "tool_name"
 param1 = <<'EOT_q8r'
@@ -20,47 +15,64 @@ param2 = "value"
 #!end_q8r
 ```
 
-Note:
-- ALL whitespace is preserved in nesl heredocs including blank lines and leading whitespace
+equivalent json:
 
-Constraints:
-- Block ID must be exactly 3 characters
-- Always use heredocs (`<<'EOT_[id]'...EOT_[id]`) for file contents
-- All paths must be absolute
+```json
+{
+ "action": "tool_name",
+ "param1": "value line 1\n\n value line 2",
+ "param2": "value"
+}
+```
+
+**Critical constraints:**
+- Paths: always absolute
+- Whitespace: preserved exactly in heredocs
 
 ## Tools
 
-### `file_write`
-Write content to file (creates or overwrites)  
-- `path`
-- `content`
+### `file_write` - Create/overwrite file
+```sh
+#!nesl [@three-char-SHA-256: fw1]
+action = "file_write"
+path = "/home/user/script.py"
+content = <<'EOT_fw1'
+#!/usr/bin/env python3
+print("Hello")
+EOT_fw1
+#!end_fw1
+```
 
-### `file_replace_text`
-Replace exactly one text occurrence  
-- `path`
-- `old_text`
-- `new_text` 
+### `file_replace_text` - Replace one occurrence
+```sh
+#!nesl [@three-char-SHA-256: fr2]
+action = "file_replace_text"
+path = "/etc/config.ini"
+old_text = <<'EOT_fr2'
+debug = false
+EOT_fr2
+new_text = <<'EOT_fr2'
+debug = true
+EOT_fr2
+#!end_fr2
+```
 
-### `file_read`
-Read file contents  
-- `path` 
+### `file_read` - Read single file
+```sh
+#!nesl [@three-char-SHA-256: rd3]
+action = "file_read"
+path = "/var/log/app.log"
+#!end_rd3
+```
 
-### `files_read`
-Read multiple files  
-- `paths`
-
-ex:
-
-```sh nesl
+### `files_read` - Read multiple files
+```sh
 #!nesl [@three-char-SHA-256: rm4]
 action = "files_read"
 paths = <<'EOT_rm4'
 /tmp/file1.txt
 /tmp/file2.txt
+/usr/local/bin/script.sh
 EOT_rm4
 #!end_rm4
 ```
-
-if you need to run any bash commands, share them with me separately and i will manually run them myself for you
-
-and remember, ALL whitespace is preserved in nesl heredocs including blank lines and leading whitespace

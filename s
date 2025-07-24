@@ -21,7 +21,17 @@ done
 # /Users/stuart/repos/loaf/proj/comp/orch/doc/API.md
 
 file_list=$(cat <<'EOF'
-proj/comp/orch/src/createStarterConfig.ts proj/comp/orch/src/index.ts proj/comp/orch/test/integration/hooks-integration.test.ts proj/comp/orch/test/utils/parseTestFile.ts proj/comp/orch/test-data/integration/hooks-integration.md proj/comp/hooks/src/detectShell.ts proj/comp/hooks/src/formatHookResult.ts proj/comp/hooks/src/index.ts proj/comp/hooks/src/interpolateCommand.ts proj/comp/hooks/src/parseYamlConfig.ts proj/comp/hooks/src/types.ts proj/comp/hooks/src/validateCommand.ts proj/comp/hooks/src/validateConfig.ts use-listener/instruct.md xd5_ref.md package.json
+
+
+/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+/Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
+/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/git-integration.test.ts
+/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-basic.test.ts
+/Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts
+/Users/stuart/repos/loaf/proj/comp/hooks/src/types.ts
+/Users/stuart/repos/loaf/proj/comp/hooks/test-data/integration/example-loaf.yml
+/Users/stuart/repos/loaf/use-listener/instruct.md
+/Users/stuart/repos/loaf/xd5_ref.md
 
 
 
