@@ -1,20 +1,23 @@
 === LOAF RESULTS ===
-h3 ✅ file_replace_lines /Users/stuart/repos/loaf/use-listener/test-files/ham.md
-h4 ✅ file_replace_lines /Users/stuart/repos/loaf/use-listener/test-files/ham.md
-h1 ❌ file_replace_lines ERROR: Unclosed quoted string (line 22)
+j1k ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-basic.test.ts
+k2l ✅ exec bash
 === END ===
 
 === OUTPUTS ===
 
-[h3] file_replace_lines /Users/stuart/repos/loaf/use-listener/test-files/ham.md:
-{
-  "path": "/Users/stuart/repos/loaf/use-listener/test-files/ham.md",
-  "lines_replaced": 1
-}
+[k2l] exec bash:
+stdout:
 
-[h4] file_replace_lines /Users/stuart/repos/loaf/use-listener/test-files/ham.md:
-{
-  "path": "/Users/stuart/repos/loaf/use-listener/test-files/ham.md",
-  "lines_replaced": 1
-}
+> loaf@0.1.0 test
+> vitest run proj/comp/hooks/test/integration/hooks-basic.test.ts
+
+
+ RUN  v1.6.1 /Users/stuart/repos/loaf
+
+ ✓ proj/comp/hooks/test/integration/hooks-basic.test.ts  (8 tests) 211ms
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  23:54:19
+   Duration  844ms (transform 85ms, setup 0ms, collect 95ms, tests 211ms, environment 0ms, prepare 135ms)
 === END ===

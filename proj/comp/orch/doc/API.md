@@ -22,6 +22,13 @@ dependencies:
     functions: [executeCommand]
     types: [ExecResult]
   
+  proj/comp/hooks:               # [PLANNED]
+    classes:
+      HooksManager:
+        constructor: [config?: HooksConfig]
+        methods: [runBefore, runAfter, loadConfig]
+    types: [HooksConfig, HookContext, HookResult]
+  
   proj/comp/git-tx:              # [PLANNED - v1.2]
     functions: [ensureCleanRepo, commitChanges]
     types: [GitError]
@@ -59,22 +66,29 @@ exports:
 - **Signature**: `async execute(llmOutput: string): Promise<ExecutionResult>`
 - **Purpose**: Parse and execute all NESL blocks in LLM output, commit results
 - **Process**: 
-  1. Parse NESL blocks
-  2. Convert to actions
-  3. Execute all valid actions
-  4. (v1.2: Git commit with summary)
+  1. Run before hooks (if enabled)
+  2. Parse NESL blocks
+  3. Convert to actions
+  4. Execute all valid actions
+  5. Run after hooks with execution context (if enabled)
+  6. (v1.2: Git commit with summary)
 - **Throws**: Never - all errors captured in ExecutionResult
+- **Hook Context**: After hooks receive: `{ success: boolean, executedActions: number, totalBlocks: number }`
 - **Test-data**: `test-data/execute/basic-operations.md` [IMPLEMENTED]
 
 ### ExecutionResult (type)
 ```typescript
 interface ExecutionResult {
-  success: boolean              // False if any action failed
+  success: boolean              // False if any action failed or hooks failed
   totalBlocks: number          // Count of NESL blocks found
   executedActions: number      // Count of actions attempted
   results: ActionResult[]      // All execution results
   parseErrors: ParseError[]    // NESL parsing errors
   fatalError?: string         // System failure (v1.2: will include git errors)
+  hookErrors?: {              // Hook execution errors
+    before?: string[]         // Before hook errors
+    after?: string[]          // After hook errors
+  }
 }
 ```
 
@@ -104,6 +118,8 @@ interface ParseError {
 interface LoafOptions {
   repoPath?: string           // Default: process.cwd()
   gitCommit?: boolean         // v1.2 feature - Default: true
+  hooks?: HooksConfig         // Hook configuration (if not provided, loads from loaf.yml)
+  enableHooks?: boolean       // Enable hook execution - Default: true
 }
 ```
 
@@ -112,12 +128,15 @@ interface LoafOptions {
 ### Execution Flow
 ```
 execute(llmOutput)
+  → loadHooks() if needed
+  → runBefore() → HookResult
   → parseNESL(llmOutput) → NeslParseResult
   → for each valid block:
     → convertToActions(block) → LoafAction[]
     → for each action:
       → route to appropriate executor
       → capture result
+  → runAfter(context) → HookResult
   → commitChanges(results)
   → return ExecutionResult
 ```
@@ -130,7 +149,9 @@ execute(llmOutput)
 - ls, grep, glob → fs-ops (read operations)
 
 ### Error Handling
+- Hook errors (before): Fatal, abort with fatalError
 - Parser errors: Skip block, record error
 - Conversion errors: Skip action, record error
 - Execution errors: Continue execution, record error
+- Hook errors (after): Record but don't affect success if actions succeeded
 - Git errors: Fatal, abort with fatalError

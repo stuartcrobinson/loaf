@@ -65,6 +65,14 @@ interface NeslError {
 - **Storage**: In-memory only, no persistence across sessions
 - **V2 Future**: Sub-file references (lines, functions, sections)
 
+### Hooks Integration
+- **Loading**: Lazy-load HooksManager on first execute() if hooks enabled
+- **Config Source**: Options > loaf.yml > no hooks
+- **Before Hook Failure**: Fatal - prevents NESL execution
+- **After Hook Failure**: Non-fatal - recorded but doesn't affect overall success
+- **Context Passing**: Minimal context to after hooks (success, counts)
+- **Variable Interpolation**: Handled by hooks component, not orch
+
 ### Execution Model
 - **Synchronous**: All operations block until complete
 - **CWD Management**: Session-based working directory

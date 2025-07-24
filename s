@@ -11,10 +11,34 @@ for arg in "$@"; do
 done
 
 
+# /Users/stuart/repos/loaf/xd5_ref.md
+# /Users/stuart/repos/loaf/replacer/replacer_llm_instructions.md
+
+
+# /Users/stuart/repos/loaf/proj/comp/hooks/doc/ABSTRACT.md
+# /Users/stuart/repos/loaf/proj/comp/hooks/doc/API.md
+# /Users/stuart/repos/loaf/proj/comp/hooks/doc/ARCH.md
+# /Users/stuart/repos/loaf/proj/comp/orch/doc/API.md
 
 file_list=$(cat <<'EOF'
 
-proj/comp/hooks/doc/ABSTRACT.md proj/comp/hooks/doc/API.md proj/comp/hooks/doc/ARCH.md proj/comp/orch/doc/API.md proj/comp/orch/doc/ARCH.md xd5_ref.md replacer/replacer_llm_instructions.md proj/comp/orch/src/index.ts proj/comp/hooks/doc/TODO.md
+/Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md
+/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+/Users/stuart/repos/loaf/proj/comp/hooks/doc/TODO.md
+
+
+/Users/stuart/repos/loaf/proj/comp/hooks/doc/ABSTRACT.md
+/Users/stuart/repos/loaf/proj/comp/hooks/doc/API.md
+/Users/stuart/repos/loaf/proj/comp/hooks/doc/ARCH.md
+/Users/stuart/repos/loaf/proj/comp/orch/doc/API.md
+
+
+/Users/stuart/repos/loaf/xd5_ref.md
+/Users/stuart/repos/loaf/replacer/replacer_llm_instructions.md
+
+
+
+
 EOF
 )
 

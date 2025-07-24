@@ -1,8 +1,10 @@
 import type { LoafAction, ParseResult, ParseError } from '../../nesl-action-parser/src/index.js';
 import { parseNeslResponse } from '../../nesl-action-parser/src/index.js';
 import type { FileOpResult } from '../../fs-ops/src/index.js';
+import type { HooksConfig, HookContext, HookResult } from '../../hooks/src/index.js';
+import { HooksManager } from '../../hooks/src/index.js';
 import { load as loadYaml } from 'js-yaml';
-import { readFile } from 'fs/promises';
+import { readFile, access } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -13,6 +15,10 @@ export interface ExecutionResult {
   results: ActionResult[];
   parseErrors: ParseError[];
   fatalError?: string;
+  hookErrors?: {
+    before?: string[];
+    after?: string[];
+  };
   debug?: {
     parseDebug?: any;
   };
@@ -31,16 +37,21 @@ export interface ActionResult {
 export interface LoafOptions {
   repoPath?: string;
   gitCommit?: boolean;
+  hooks?: HooksConfig;
+  enableHooks?: boolean;
 }
 
 export class Loaf {
   private options: LoafOptions;
   private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>> | null = null;
+  private hooksManager: HooksManager | null = null;
 
   constructor(options: LoafOptions = {}) {
     this.options = {
       repoPath: options.repoPath || process.cwd(),
-      gitCommit: options.gitCommit ?? true
+      gitCommit: options.gitCommit ?? true,
+      hooks: options.hooks,
+      enableHooks: options.enableHooks ?? true
     };
   }
 
@@ -49,7 +60,55 @@ export class Loaf {
    * Executes all valid actions sequentially, collecting both successes and failures
    */
   async execute(llmOutput: string): Promise<ExecutionResult> {
+    const hookErrors: ExecutionResult['hookErrors'] = {};
+
     try {
+      // Initialize hooks if enabled and not already initialized
+      if (this.options.enableHooks && !this.hooksManager) {
+        try {
+          await this.initializeHooks();
+        } catch (error) {
+          return {
+            success: false,
+            totalBlocks: 0,
+            executedActions: 0,
+            results: [],
+            parseErrors: [],
+            fatalError: `Failed to initialize hooks: ${error instanceof Error ? error.message : String(error)}`
+          };
+        }
+      }
+
+      // Run before hooks
+      if (this.hooksManager) {
+        try {
+          const beforeResult = await this.hooksManager.runBefore();
+          if (!beforeResult.success) {
+            // Before hook failure is fatal
+            return {
+              success: false,
+              totalBlocks: 0,
+              executedActions: 0,
+              results: [],
+              parseErrors: [],
+              hookErrors: {
+                before: beforeResult.errors?.map(e => `${e.command}: ${e.error}`) || ['Unknown before hook error']
+              },
+              fatalError: 'Before hooks failed - aborting execution'
+            };
+          }
+        } catch (error) {
+          return {
+            success: false,
+            totalBlocks: 0,
+            executedActions: 0,
+            results: [],
+            parseErrors: [],
+            fatalError: `Before hooks threw unexpected error: ${error instanceof Error ? error.message : String(error)}`
+          };
+        }
+      }
+
       // Parse NESL blocks
       const parseResult = await parseNeslResponse(llmOutput);
 
@@ -80,16 +139,38 @@ export class Loaf {
         results.push(result);
       }
 
-      // Calculate overall success
+      // Calculate execution success (before considering after hooks)
       const allActionsSucceeded = results.every(r => r.success);
       const noParseErrors = parseResult.errors.length === 0;
+      const executionSuccess = allActionsSucceeded && noParseErrors;
+
+      // Run after hooks with context
+      if (this.hooksManager) {
+        try {
+          const afterContext: HookContext = {
+            success: executionSuccess,
+            executedActions: results.length,
+            totalBlocks: parseResult.summary.totalBlocks
+          };
+          
+          const afterResult = await this.hooksManager.runAfter(afterContext);
+          if (!afterResult.success) {
+            // After hook failure is non-fatal but recorded
+            hookErrors.after = afterResult.errors?.map(e => `${e.command}: ${e.error}`) || ['Unknown after hook error'];
+          }
+        } catch (error) {
+          // After hook unexpected errors are also non-fatal
+          hookErrors.after = [`After hooks threw unexpected error: ${error instanceof Error ? error.message : String(error)}`];
+        }
+      }
 
       return {
-        success: allActionsSucceeded && noParseErrors,
+        success: executionSuccess && !hookErrors.after, // After hook errors affect overall success
         totalBlocks: parseResult.summary.totalBlocks,
         executedActions: results.length,
         results,
         parseErrors: parseResult.errors,
+        ...(Object.keys(hookErrors).length > 0 && { hookErrors }),
         debug: {
           parseDebug: parseResult.debug
         }
@@ -105,6 +186,29 @@ export class Loaf {
         parseErrors: [],
         fatalError: `Unexpected error in execute: ${error instanceof Error ? error.message : String(error)}`
       };
+    }
+  }
+
+  /**
+   * Initialize hooks manager with configuration
+   * Loads from options or loaf.yml file
+   */
+  private async initializeHooks(): Promise<void> {
+    if (this.options.hooks) {
+      // Use provided configuration
+      this.hooksManager = new HooksManager(this.options.hooks);
+    } else {
+      // Try to load from loaf.yml
+      const loafYmlPath = join(this.options.repoPath!, 'loaf.yml');
+      try {
+        await access(loafYmlPath);
+        this.hooksManager = new HooksManager();
+        const config = await this.hooksManager.loadConfig(loafYmlPath);
+        this.hooksManager = new HooksManager(config);
+      } catch (error) {
+        // No loaf.yml found, hooks will be disabled
+        // This is not an error - hooks are optional
+      }
     }
   }
 

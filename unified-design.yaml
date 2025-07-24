@@ -44,6 +44,20 @@ tools:
       new_text: {type: string, required: true}
     returns: {success: boolean, replacements_made?: integer, error?: string}
     
+  file_replace_text_range:
+    type: write
+    executor: fs-ops
+    description: Replace first and only instance of text range in file. must exist only once
+    accessibility: [llm]
+    output_display: never
+    primary_param: path
+    parameters:
+      path: {type: string, required: true, format: absolute_path}
+      old_text_beginning: {type: string, required: true}
+      old_text_end: {type: string, required: true}
+      new_text: {type: string, required: true}
+    returns: {success: boolean, replacements_made?: integer, error?: string}
+    
   file_replace_all_text:
     type: write
     executor: fs-ops
