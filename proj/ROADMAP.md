@@ -1,12 +1,41 @@
 
 
+TODO:
+
+- indicate in the unified yaml whether tools are implemented yet or not.  so if not they should be totally ignored from everything. 
+
+
+
+ok all things are supposedly finished for release!!!!
+
+so what next...
+
+
+- review the allowed/exisitng tools/actions
+    - rename them to actions?
+    - drop dumb stuff like 'dir_create'
+    - indicate in the unified yaml whether they're implemented yet or not.  so if not they should be totally ignored from everything. 
+    - cmd line option for auto copy/paste stuff
+    - new feature - listen for LLM output copy?  
+        - yes!!!!  be watching the clipboard for when
+            - contains nesl AND THEN
+                - clipbaord changes within 1 or 2 seconds such that it contains the same nesl markers and ids (note that we cant do an exact match cos formatting syntax might be different from copy button vs select and copy)
+                - so u click the copy button, then do ctrl-a, ctrl-v -- to immediately just copy the whole page
+                - and this is how sloop will know that the first thing u copied was real nesl syntax that u want to get executed.  
+                - should we integrate mac notifications?  prob too hard. deal w settings etc
+- rename to sloop
+- cleanup, just delete trash or embarrassing bits
+- 
+
+-----
+
 loaf-cli 
 
 
 FIVE things i want to finish before release 
 
 
-- LLM instructions generator (based on tools allowlist)
+X LLM instructions generator (based on tools allowlist)
 
 X hooks for custom git etc before and after executions
 
