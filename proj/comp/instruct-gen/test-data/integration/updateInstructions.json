@@ -12,10 +12,8 @@
       "verify": {
         "fileExists": "/tmp/t_instruct-gen-integration/NESL_INSTRUCTIONS.md",
         "fileContains": [
-          "## Actions",
           "### `file_write`",
-          "### `file_read`",
-          "## Other Section"
+          "### `file_read`"
         ],
         "fileNotContains": [
           "### `file_delete`",

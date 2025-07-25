@@ -25,11 +25,18 @@ so what next...
             - and this is how sloop will know that the first thing u copied was real nesl syntax that u want to get executed.  
             - should we integrate mac notifications?  prob too hard. deal w settings etc
 - publish nesl to npm 
-- publish sloop-cli to npm 
+- publish slupe to npm 
 - look for response from npm support about getting my account back...             
-- rename to sloop
+- rename to slupe
 - cleanup, just delete trash or embarrassing bits
-- 
+
+- PUBLISH TO HACKER NEWS
+
+v2: add some more tools, like:
+
+- file_replace_in_node
+- file_overwrite_node
+- file_delete_node
 
 -----
 

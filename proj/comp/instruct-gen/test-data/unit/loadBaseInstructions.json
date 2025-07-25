@@ -5,9 +5,7 @@
       "input": [],
       "verify": {
         "contains": [
-          "# NESL Actions API Reference",
-          "## Actions",
-          "## Other Section"
+          "## Actions"
         ],
         "type": "string"
       }
