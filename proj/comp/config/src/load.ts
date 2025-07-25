@@ -3,6 +3,8 @@ import { join } from 'path';
 import { load as loadYaml } from 'js-yaml';
 import type { LoafConfig, FsGuardConfig } from './types.js';
 import { validateConfig } from './validate.js';
+import { createStarterConfig } from './create.js';
+import { DEFAULT_CONFIG_YAML } from './defaults.js';
 
 export async function loadConfig(repoPath: string): Promise<LoafConfig> {
   const configPath = join(repoPath, 'loaf.yml');
@@ -20,14 +22,20 @@ export async function loadConfig(repoPath: string): Promise<LoafConfig> {
     return config;
   } catch (error: any) {
     if (error.code === 'ENOENT') {
-      // Return default config when file doesn't exist
-      return {
-        version: 1,
-        'fs-guard': {
-          allowed: [`${repoPath}/**`, '/tmp/**'],
-          denied: ['/**/.git/**', '/**/.ssh/**', '/etc/**', '/sys/**', '/proc/**']
-        }
-      };
+      // Create the config file
+      await createStarterConfig(repoPath);
+      
+      // Return config by parsing the same YAML we just wrote
+      const config = loadYaml(DEFAULT_CONFIG_YAML) as LoafConfig;
+      
+      // Convert relative paths to absolute
+      if (config['fs-guard']?.allowed) {
+        config['fs-guard'].allowed = config['fs-guard'].allowed.map(path => 
+          path.startsWith('/') ? path : join(repoPath, path)
+        );
+      }
+      
+      return config;
     }
     throw error;
   }

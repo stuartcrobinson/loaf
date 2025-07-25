@@ -209,14 +209,8 @@ export class Loaf {
    */
   private static async initializeExecutors(config: LoafConfig, repoPath: string): Promise<Map<string, (action: LoafAction) => Promise<FileOpResult>>> {
 
-    // Create fs-guard
-    const fsGuard = new FsGuard(
-      config['fs-guard'] || {
-        allowed: [`${repoPath}/**`, '/tmp/**'],
-        denied: ['/**/.git/**', '/**/.ssh/**', '/etc/**', '/sys/**', '/proc/**']
-      },
-      repoPath
-    );
+    // Create fs-guard - config['fs-guard'] is guaranteed to exist from loadConfig
+    const fsGuard = new FsGuard(config['fs-guard']!, repoPath);
 
     // Create executors
     const fsOps = new FsOpsExecutor(fsGuard);
