@@ -6,15 +6,12 @@ loaf-cli
 FIVE things i want to finish before release 
 
 
-- fs permissions - read/write allowlist/denylist
-- tools allowlist (to block cmd line stuff for file security)
-- secretly allow synonyms for tools (like file_create == file_write cos llm really wants to use file_create)
-    - new feature maybe... synonyms.. (create_file write_file ???? idk if overkill)
-    - .  file_create and file_copy  -
-
 - LLM instructions generator (based on tools allowlist)
 
 X hooks for custom git etc before and after executions
+
+X fs permissions - read/write allowlist/denylist
+X tools allowlist (to block cmd line stuff for file security)
 
 
 - npx run usage
@@ -23,6 +20,9 @@ X hooks for custom git etc before and after executions
 LATER:
 
 
+- secretly allow synonyms for tools (like file_create == file_write cos llm really wants to use file_create)
+    - new feature maybe... synonyms.. (create_file write_file ???? idk if overkill)
+    - .  file_create and file_copy  -
 - search/replace by range file_replace_text_range
 - copy paste mode 
     - include clipboard watcher to automatically execute outputs that have been copied and then if user copies "nesl" 
