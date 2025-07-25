@@ -1,164 +1,3 @@
-=== START FILE: /Users/stuart/repos/loaf/tsconfig.base.json ===
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "lib": ["ES2022"],
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
-  }
-}
-=== END FILE: /Users/stuart/repos/loaf/tsconfig.base.json ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/src/load.ts ===
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import { load as loadYaml } from 'js-yaml';
-import type { LoafConfig } from './types.js';
-import { validateConfig } from './validate.js';
-
-export async function loadConfig(repoPath: string): Promise<LoafConfig> {
-  const configPath = join(repoPath, 'loaf.yml');
-
-  try {
-    const content = await readFile(configPath, 'utf8');
-    const config = loadYaml(content) as LoafConfig;
-
-    // Validate config structure
-    const validation = validateConfig(config);
-    if (!validation.valid) {
-      throw new Error(`Invalid config: ${validation.error}`);
-    }
-
-    return config;
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      // Return default config when file doesn't exist
-      return {
-        version: 1,
-        'fs-guard': {
-          allowed: [`${repoPath}/**`, '/tmp/**'],
-          denied: ['/**/.git/**', '/**/.ssh/**', '/etc/**', '/sys/**', '/proc/**']
-        }
-      };
-    }
-    throw error;
-  }
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/src/load.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/src/validate.ts ===
-import type { LoafConfig } from './types.js';
-
-export interface ValidationResult {
-  valid: boolean;
-  error?: string;
-}
-
-export function validateConfig(config: any): ValidationResult {
-  if (!config || typeof config !== 'object') {
-    return {
-      valid: false,
-      error: 'Config must be an object'
-    };
-  }
-
-  if (!config.version) {
-    return {
-      valid: false,
-      error: 'Config missing version'
-    };
-  }
-
-  if (typeof config.version !== 'number') {
-    return {
-      valid: false,
-      error: 'Config version must be a number'
-    };
-  }
-
-  // Validate hooks if present
-  if (config.hooks) {
-    if (typeof config.hooks !== 'object') {
-      return {
-        valid: false,
-        error: 'hooks must be an object'
-      };
-    }
-
-    if (config.hooks.before && !Array.isArray(config.hooks.before)) {
-      return {
-        valid: false,
-        error: 'hooks.before must be an array'
-      };
-    }
-
-    if (config.hooks.after && !Array.isArray(config.hooks.after)) {
-      return {
-        valid: false,
-        error: 'hooks.after must be an array'
-      };
-    }
-  }
-
-  // Validate vars if present
-  if (config.vars) {
-    if (typeof config.vars !== 'object' || Array.isArray(config.vars)) {
-      return {
-        valid: false,
-        error: 'vars must be an object'
-      };
-    }
-
-    for (const [key, value] of Object.entries(config.vars)) {
-      if (typeof value !== 'string') {
-        return {
-          valid: false,
-          error: `var '${key}' must be a string`
-        };
-      }
-    }
-  }
-
-  // Validate fs-guard if present
-  if (config['fs-guard']) {
-    const fsGuard = config['fs-guard'];
-    if (typeof fsGuard !== 'object') {
-      return {
-        valid: false,
-        error: 'fs-guard must be an object'
-      };
-    }
-
-    if (fsGuard.allowed && !Array.isArray(fsGuard.allowed)) {
-      return {
-        valid: false,
-        error: 'fs-guard.allowed must be an array'
-      };
-    }
-
-    if (fsGuard.denied && !Array.isArray(fsGuard.denied)) {
-      return {
-        valid: false,
-        error: 'fs-guard.denied must be an array'
-      };
-    }
-
-    if (fsGuard.followSymlinks !== undefined && typeof fsGuard.followSymlinks !== 'boolean') {
-      return {
-        valid: false,
-        error: 'fs-guard.followSymlinks must be a boolean'
-      };
-    }
-  }
-
-  return { valid: true };
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/src/validate.ts ===
-
 === START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
 import type { LoafAction, ParseResult, ParseError } from '../../nesl-action-parser/src/index.js';
 import { parseNeslResponse } from '../../nesl-action-parser/src/index.js';
@@ -230,10 +69,10 @@ export class Loaf {
     if (options.enableHooks !== false) {
       if (options.hooks) {
         // Use provided hooks configuration
-        hooksManager = new HooksManager(options.hooks, {}, repoPath);
+        hooksManager = new HooksManager(options.hooks, undefined, repoPath);
       } else if (config.hooks) {
         // Use hooks from loaded config
-        hooksManager = new HooksManager(config.hooks, config.vars || {}, repoPath);
+        hooksManager = new HooksManager(config.hooks, config.vars, repoPath);
       }
     }
     
@@ -504,26 +343,773 @@ export class Loaf {
 }
 === END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
 
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/src/types.ts ===
-import type { HooksConfig } from '../../hooks/src/index.js';
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/src/load.ts ===
+import { readFile } from 'fs/promises';
+import { join } from 'path';
+import { load as loadYaml } from 'js-yaml';
+import type { LoafConfig, FsGuardConfig } from './types.js';
+import { validateConfig } from './validate.js';
 
-export interface LoafConfig {
-  version: number;
-  hooks?: HooksConfig;
+export async function loadConfig(repoPath: string): Promise<LoafConfig> {
+  const configPath = join(repoPath, 'loaf.yml');
+
+  try {
+    const content = await readFile(configPath, 'utf8');
+    const config = loadYaml(content) as LoafConfig;
+
+    // Validate config structure
+    const validation = validateConfig(config);
+    if (!validation.valid) {
+      throw new Error(`Invalid config: ${validation.error}`);
+    }
+
+    return config;
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      // Return default config when file doesn't exist
+      return {
+        version: 1,
+        'fs-guard': {
+          allowed: [`${repoPath}/**`, '/tmp/**'],
+          denied: ['/**/.git/**', '/**/.ssh/**', '/etc/**', '/sys/**', '/proc/**']
+        }
+      };
+    }
+    throw error;
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/src/load.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/src/create.ts ===
+import { writeFile } from 'fs/promises';
+import { join } from 'path';
+
+const STARTER_LOAF_YML = `# Loaf configuration
+version: 1
+
+# File system guard configuration
+fs-guard:
+  # Allowed paths (supports glob patterns)
+  # Relative paths are resolved from this config file's location
+  allowed:
+    - "./**"           # All files in project
+    - "/tmp/**"        # Temporary files
+  
+  # Denied paths (more specific rules override less specific)
+  denied:
+    - "**/.git/**"     # Git internals
+    - "**/.ssh/**"     # SSH keys
+    - "**/node_modules/**"  # Dependencies
+  
+  # Whether to follow symlinks (default: false)
+  followSymlinks: false
+
+# Git hooks configuration
+hooks:
+  before: []
+  after: []
+  
+  # Example hooks (uncomment to use):
+  # before:
+  #   - run: git stash --include-untracked
+  #     continueOnError: false
+  
+  # after:
+  #   - run: git add -A
+  #   - run: git commit -m "\${COMMIT_MSG}"
+  #     continueOnError: false
+  #   - run: git push
+  #     continueOnError: true
+  #     timeout: 10000  # 10s for slow networks
+
+# Variables available in commands
+vars:
+  COMMIT_MSG: "AI-assisted changes"
+  # Add more variables as needed
+`;
+
+/**
+ * Creates a starter loaf.yml file if it doesn't exist
+ * @returns true if file was created, false if already exists
+ */
+export async function createStarterConfig(repoPath: string): Promise<boolean> {
+  const configPath = join(repoPath, 'loaf.yml');
+  
+  try {
+    await writeFile(configPath, STARTER_LOAF_YML, { flag: 'wx' });
+    return true;
+  } catch (error: any) {
+    if (error.code === 'EEXIST') {
+      return false;
+    }
+    throw error;
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/src/create.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
+import { promisify } from 'util';
+import { exec } from 'child_process';
+import { interpolateCommand } from './interpolateCommand.js';
+import { validateCommand } from './validateCommand.js';
+import { formatHookResult } from './formatHookResult.js';
+import type { CommandResult } from './types.js';
+
+// Public types
+export interface HooksConfig {
+  version?: number;
+  before?: Command[];
+  after?: Command[];
   vars?: Record<string, string>;
-  'fs-guard'?: FsGuardConfig;
-  'exec-guard'?: ExecGuardConfig; // future
 }
 
-export interface FsGuardConfig {
-  allowed?: string[];
-  denied?: string[];
-  followSymlinks?: boolean;
-}
-
-export interface ExecGuardConfig {
-  languages?: string[];
+export interface Command {
+  run: string;
+  continueOnError?: boolean;
   timeout?: number;
+  cwd?: string;
 }
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/src/types.ts ===
+
+export interface HookContext {
+  [key: string]: string | number | boolean;
+}
+
+export interface HookResult {
+  success: boolean;
+  executed: number;
+  errors?: Array<{
+    command: string;
+    error: string;
+  }>;
+}
+
+// Promisified exec
+const execAsync = promisify(exec);
+
+// Main class
+export class HooksManager {
+  private config: HooksConfig;
+  private vars: Record<string, string>;
+  private repoPath: string;
+
+  constructor(config?: HooksConfig, vars?: Record<string, string>, repoPath?: string) {
+    this.config = config || {};
+    this.vars = vars || {};
+    this.repoPath = repoPath || process.cwd();
+  }
+
+  async runBefore(context?: HookContext): Promise<HookResult> {
+    const commands = this.config.before || [];
+    return this.runCommands(commands, context);
+  }
+
+  async runAfter(context?: HookContext): Promise<HookResult> {
+    const commands = this.config.after || [];
+    return this.runCommands(commands, context);
+  }
+
+
+
+  private async runCommands(commands: Command[], context?: HookContext): Promise<HookResult> {
+    const results: CommandResult[] = [];
+
+    for (const cmd of commands) {
+      try {
+        // Interpolate variables
+        const interpolatedCmd = interpolateCommand(cmd, this.vars, context);
+
+        // Validate command
+        const validation = validateCommand(interpolatedCmd);
+        if (!validation.valid) {
+          const result: CommandResult = {
+            command: cmd.run,
+            success: false,
+            error: validation.error || 'Invalid command'
+          };
+          results.push(result);
+
+          if (!cmd.continueOnError) {
+            break;
+          }
+          continue;
+        }
+
+        // Execute command
+        const result = await this.executeCommand(interpolatedCmd);
+
+        results.push({
+          command: cmd.run,
+          ...result
+        });
+
+        if (!result.success && !cmd.continueOnError) {
+          break;
+        }
+      } catch (error: any) {
+        const result: CommandResult = {
+          command: cmd.run,
+          success: false,
+          error: error.message
+        };
+        results.push(result);
+
+        if (!cmd.continueOnError) {
+          break;
+        }
+      }
+    }
+
+    return formatHookResult(results);
+  }
+
+  private async executeCommand(cmd: Command): Promise<Omit<CommandResult, 'command'>> {
+    const timeout = cmd.timeout || 30000;
+    const options = {
+      cwd: cmd.cwd || this.repoPath,
+      timeout,
+      encoding: 'utf8' as const,
+      shell: true  // Ensure shell interpretation for redirects
+    };
+
+    try {
+      const { stdout, stderr } = await execAsync(cmd.run, options);
+      return {
+        success: true,
+        stdout: stdout || '',
+        stderr: stderr || ''
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+        stdout: error.stdout || '',
+        stderr: error.stderr || ''
+      };
+    }
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts ===
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync, existsSync, mkdirSync, rmSync } from 'fs';
+import { join } from 'path';
+import { Loaf } from '../../src/index.js';
+import { parseTestFile } from '../utils/parseTestFile.js';
+
+describe('Hooks Integration', () => {
+  const testDataPath = join(import.meta.dirname, '../../test-data/integration/hooks-integration.md');
+  const testCases = parseTestFile(testDataPath);
+
+  beforeEach(() => {
+    // Ensure temp directories exist
+    if (!existsSync('/tmp')) {
+      throw new Error('Tests require /tmp directory');
+    }
+  });
+
+  afterEach(() => {
+    // Cleanup test directories
+    const dirs = [
+      '/tmp/t_hooks_integration_001',
+      '/tmp/t_hooks_integration_002',
+      '/tmp/t_hooks_integration_003',
+      '/tmp/t_hooks_integration_004',
+      '/tmp/t_hooks_integration_005'
+    ];
+    
+    for (const dir of dirs) {
+      if (existsSync(dir)) {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  });
+
+  for (const testCase of testCases) {
+    test(testCase.name, async () => {
+      // Setup
+      if (testCase.config?.repoPath && !existsSync(testCase.config.repoPath)) {
+        mkdirSync(testCase.config.repoPath, { recursive: true });
+      }
+
+      // Create Loaf instance with test config
+      const loaf = new Loaf(testCase.config);
+
+      // Execute
+      const result = await loaf.execute(testCase.input);
+      
+      // Debug output
+      console.log(`\n=== Test: ${testCase.name} ===`);
+      console.log('Config:', JSON.stringify(testCase.config, null, 2));
+      console.log('Result:', JSON.stringify(result, null, 2));
+
+      // Basic assertions
+      expect(result.success).toBe(testCase.expected.success);
+      expect(result.totalBlocks).toBe(testCase.expected.totalBlocks);
+      expect(result.executedActions).toBe(testCase.expected.executedActions);
+
+      // Verify hook errors if expected
+      if (testCase.expected.hookErrors) {
+        expect(result.hookErrors).toBeDefined();
+        if (testCase.expected.hookErrors.before) {
+          expect(result.hookErrors?.before).toBeDefined();
+          expect(result.hookErrors?.before?.length).toBeGreaterThan(0);
+        }
+      }
+
+      // Verify fatal error if expected
+      if (testCase.expected.fatalError) {
+        expect(result.fatalError).toBe(testCase.expected.fatalError);
+      }
+
+      // Test-specific verifications
+      if (testCase.verify) {
+        const repoPath = testCase.config?.repoPath;
+        
+        if (!repoPath) {
+          throw new Error(`Test ${testCase.name} has verify=true but no repoPath in config`);
+        }
+        
+        switch (testCase.name) {
+          case '001-basic-hooks-execution': {
+            const tracePath = join(repoPath, 'hook-trace.txt');
+            expect(existsSync(tracePath)).toBe(true);
+            const trace = readFileSync(tracePath, 'utf8');
+            expect(trace).toContain('BEFORE_RAN');
+            expect(trace).toContain('AFTER_RAN');
+            expect(trace).toContain('FILES_MODIFIED=');
+            break;
+          }
+          
+          case '002-hooks-with-failures': {
+            const resultPath = join(repoPath, 'result.txt');
+            expect(existsSync(resultPath)).toBe(true);
+            const content = readFileSync(resultPath, 'utf8');
+            expect(content).toContain('SUCCESS=false');
+            expect(content).toContain('ERRORS=1');
+            break;
+          }
+          
+          case '003-before-hook-failure-aborts': {
+            const testPath = join(repoPath, 'test.txt');
+            const afterPath = join(repoPath, 'after.txt');
+            expect(existsSync(testPath)).toBe(false);
+            expect(existsSync(afterPath)).toBe(false);
+            break;
+          }
+          
+          case '004-context-variables-in-hooks': {
+            const summaryPath = join(repoPath, 'summary.txt');
+            expect(existsSync(summaryPath)).toBe(true);
+            const summary = readFileSync(summaryPath, 'utf8');
+            expect(summary).toContain('Total blocks: 2');
+            expect(summary).toContain('Executed: 2');
+            expect(summary).toContain('Operations: file_write,file_read');
+            break;
+          }
+          
+          case '005-loaf-yml-auto-creation': {
+            const configPath = join(repoPath, 'loaf.yml');
+            expect(existsSync(configPath)).toBe(true);
+            const testPath = join(repoPath, 'test.txt');
+            expect(existsSync(testPath)).toBe(true);
+            break;
+          }
+        }
+      }
+    });
+  }
+});
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/listener/test/integration/listener-workflow-v2.test.ts ===
+import { describe, it, expect, beforeAll } from 'vitest';
+import { readFile, writeFile, mkdir, rm } from 'fs/promises';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { marked } from 'marked';
+import clipboard from 'clipboardy';
+
+import { startListener } from '../../src/listener.js';
+import type { ListenerHandle } from '../../src/types.js';
+// // At the top of your test file
+// import { test } from 'vitest';
+// test.concurrent = false;
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+interface TestCase {
+  name: string;
+  initialContent: string;
+  newContent: string;
+  expectedPrepended: string;
+  expectedOutput: string;
+  expectedClipboard: string;
+}
+
+// Parse test cases from markdown
+async function parseTestCases(): Promise<TestCase[]> {
+  const testDataPath = join(__dirname, '../../test-data/integration/listener-workflow-v2.cases.md');
+  const markdown = await readFile(testDataPath, 'utf-8');
+
+  const tokens = marked.lexer(markdown);
+  const testCases: TestCase[] = [];
+  let currentTest: Partial<TestCase> | null = null;
+  let codeBlockCount = 0;
+
+  for (const token of tokens) {
+    // Test case name (h3)
+    if (token.type === 'heading' && token.depth === 3) {
+      // Save previous test if complete
+      if (currentTest && currentTest.name &&
+        currentTest.initialContent &&
+        currentTest.newContent &&
+        currentTest.expectedPrepended &&
+        currentTest.expectedOutput &&
+        currentTest.expectedClipboard) {
+        testCases.push(currentTest as TestCase);
+      }
+
+      // Start new test
+      currentTest = { name: token.text };
+      codeBlockCount = 0;
+    }
+
+    // Code blocks - just take them in order, ignoring h4 headers
+    if (token.type === 'code' && currentTest) {
+      const content = token.text;
+      codeBlockCount++;
+
+      switch (codeBlockCount) {
+        case 1:
+          currentTest.initialContent = content;
+          break;
+        case 2:
+          currentTest.newContent = content;
+          break;
+        case 3:
+          currentTest.expectedPrepended = content;
+          break;
+        case 4:
+          currentTest.expectedOutput = content;
+          break;
+        case 5:
+          currentTest.expectedClipboard = content;
+          break;
+      }
+    }
+  }
+
+  // Don't forget the last test case
+  if (currentTest && currentTest.name &&
+    currentTest.initialContent &&
+    currentTest.newContent &&
+    currentTest.expectedPrepended &&
+    currentTest.expectedOutput &&
+    currentTest.expectedClipboard) {
+    testCases.push(currentTest as TestCase);
+  }
+
+  return testCases;
+}
+
+// Helper to extract test directory name from test case
+function getTestDir(testCaseName: string): string {
+  const safeName = testCaseName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  return `/tmp/t_listener_${safeName}`;
+}
+
+// Helper to poll for file content change
+async function pollForFileChange(
+  filePath: string,
+  initialContent: string,
+  timeoutMs: number = 1000
+): Promise<string> {
+  const startTime = Date.now();
+  let lastContent = initialContent;
+
+  while (Date.now() - startTime < timeoutMs) {
+    try {
+      const content = await readFile(filePath, 'utf-8');
+      if (content !== lastContent && content.includes('=== LOAF RESULTS ===')) {
+        return content;
+      }
+      lastContent = content;
+    } catch { }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  throw new Error(`Timeout waiting for file change after ${timeoutMs}ms`);
+}
+
+// Load test cases at module level
+const testCasesPromise = parseTestCases();
+
+
+export async function listenerWorkflowTests() {
+  // Load test cases before defining tests
+  const testCases = await testCasesPromise;
+
+  // Use it.each to create separate test for each test case
+  it.each(testCases)('$name', async (testCase) => {
+    let handle: ListenerHandle | null = null;
+    const testDir = getTestDir(testCase.name);
+    const testFile = join(testDir, 'test.txt');
+    const outputFile = join(testDir, '.loaf-output-latest.txt');
+
+    try {
+      // Setup
+      await mkdir(testDir, { recursive: true });
+      await writeFile(testFile, testCase.initialContent);
+
+      // Start listener
+      handle = await startListener({
+        filePath: testFile,
+        debounceMs: 100
+      });
+
+      // Wait for initial processing
+      await pollForFileChange(testFile, testCase.initialContent);
+
+      // Wait for debounce to settle
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Write new content
+      await writeFile(testFile, testCase.newContent);
+
+      // Wait for processing to complete
+      await pollForFileChange(testFile, testCase.newContent);
+
+      // Wait a bit more for clipboard and output file writes
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      // Read actual results
+      const actualPrepended = await readFile(testFile, 'utf-8');
+      const actualOutput = await readFile(outputFile, 'utf-8');
+      const actualClipboard = await clipboard.read();
+
+      // Compare results (exact match)
+      expect(actualPrepended).toBe(testCase.expectedPrepended);
+      expect(actualOutput).toBe(testCase.expectedOutput);
+      expect(actualClipboard).toBe(testCase.expectedClipboard);
+
+    } finally {
+      // Cleanup
+      if (handle) {
+        await handle.stop();
+      }
+      await rm(testDir, { recursive: true, force: true });
+    }
+  });
+}
+
+
+
+// Only run directly if this file is executed, not imported
+if (import.meta.url === `file://${process.argv[1]}`) {
+  describe('listener workflow v2', async () => {
+    await listenerWorkflowTests();
+  });
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/listener/test/integration/listener-workflow-v2.test.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/test/unit/load.test.ts ===
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
+import { join } from 'path';
+import { loadConfig } from '../../src/load.js';
+
+const TEST_DIR = '/tmp/t_config_load_test';
+
+describe('loadConfig', () => {
+  beforeEach(() => {
+    if (existsSync(TEST_DIR)) {
+      rmSync(TEST_DIR, { recursive: true, force: true });
+    }
+    mkdirSync(TEST_DIR, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(TEST_DIR)) {
+      rmSync(TEST_DIR, { recursive: true, force: true });
+    }
+  });
+
+  test('loads valid config', async () => {
+    const configContent = `version: 1
+hooks:
+  before:
+    - run: echo "test"
+vars:
+  TEST: value
+fs-guard:
+  allowed:
+    - "./**"
+`;
+    writeFileSync(join(TEST_DIR, 'loaf.yml'), configContent);
+
+    const config = await loadConfig(TEST_DIR);
+    
+    expect(config.version).toBe(1);
+    expect(config.hooks?.before).toHaveLength(1);
+    expect(config.vars?.TEST).toBe('value');
+    expect(config['fs-guard']?.allowed).toContain('./**');
+  });
+
+  test('returns default config when file missing', async () => {
+    const config = await loadConfig(TEST_DIR);
+    
+    expect(config.version).toBe(1);
+    expect(config['fs-guard']).toBeDefined();
+    expect(config['fs-guard']?.allowed).toContain(`${TEST_DIR}/**`);
+    expect(config['fs-guard']?.allowed).toContain('/tmp/**');
+    expect(config.hooks).toBeUndefined();
+  });
+
+  test('throws on invalid YAML', async () => {
+    const invalidYaml = `version: 1
+  invalid: yaml: structure
+`;
+    writeFileSync(join(TEST_DIR, 'loaf.yml'), invalidYaml);
+
+    await expect(loadConfig(TEST_DIR)).rejects.toThrow('Invalid YAML');
+  });
+
+  test('throws on invalid config structure', async () => {
+    const invalidConfig = `version: "not a number"`;
+    writeFileSync(join(TEST_DIR, 'loaf.yml'), invalidConfig);
+
+    await expect(loadConfig(TEST_DIR)).rejects.toThrow('Invalid config: Config version must be a number');
+  });
+
+  test('throws on missing version', async () => {
+    const noVersion = `hooks:
+  before:
+    - run: echo "test"
+`;
+    writeFileSync(join(TEST_DIR, 'loaf.yml'), noVersion);
+
+    await expect(loadConfig(TEST_DIR)).rejects.toThrow('Invalid config: Config missing version');
+  });
+});
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/test/unit/load.test.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/test/unit/create.test.ts ===
+import { describe, test, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
+import { join } from 'path';
+import { createStarterConfig } from '../../src/create.js';
+
+const TEST_DIR = '/tmp/t_config_create_test';
+
+describe('createStarterConfig', () => {
+  beforeEach(() => {
+    if (existsSync(TEST_DIR)) {
+      rmSync(TEST_DIR, { recursive: true, force: true });
+    }
+    mkdirSync(TEST_DIR, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(TEST_DIR)) {
+      rmSync(TEST_DIR, { recursive: true, force: true });
+    }
+  });
+
+  test('creates starter config when missing', async () => {
+    const created = await createStarterConfig(TEST_DIR);
+    
+    expect(created).toBe(true);
+    expect(existsSync(join(TEST_DIR, 'loaf.yml'))).toBe(true);
+    
+    const content = readFileSync(join(TEST_DIR, 'loaf.yml'), 'utf8');
+    expect(content).toContain('version: 1');
+    expect(content).toContain('fs-guard:');
+    expect(content).toContain('hooks:');
+    expect(content).toContain('vars:');
+  });
+
+  test('returns false when file exists', async () => {
+    writeFileSync(join(TEST_DIR, 'loaf.yml'), 'existing content');
+    
+    const created = await createStarterConfig(TEST_DIR);
+    
+    expect(created).toBe(false);
+    
+    // Verify existing content unchanged
+    const content = readFileSync(join(TEST_DIR, 'loaf.yml'), 'utf8');
+    expect(content).toBe('existing content');
+  });
+
+  test('throws on write error', async () => {
+    // Make directory read-only (Unix-specific)
+    if (process.platform !== 'win32') {
+      await createStarterConfig(TEST_DIR); // Create file first
+      rmSync(join(TEST_DIR, 'loaf.yml'));
+      mkdirSync(join(TEST_DIR, 'loaf.yml')); // Create directory with same name
+      
+      await expect(createStarterConfig(TEST_DIR)).rejects.toThrow();
+    }
+  });
+});
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/test/unit/create.test.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/unit/parseYamlConfig.test.ts ===
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { parseYamlConfig } from '../../src/parseYamlConfig.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load test data
+const testDataPath = join(__dirname, '../../test-data/unit/parseYamlConfig.json');
+const testData = JSON.parse(readFileSync(testDataPath, 'utf8'));
+
+// Run tests
+describe('parseYamlConfig', () => {
+  testData.cases.forEach((testCase: any) => {
+    test(testCase.name, () => {
+      const [content] = testCase.input;
+      
+      if (testCase.throws) {
+        expect(() => parseYamlConfig(content)).toThrow();
+      } else {
+        const result = parseYamlConfig(content);
+        expect(result).toEqual(testCase.expected);
+      }
+    });
+  });
+});
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/unit/parseYamlConfig.test.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/unit/validateConfig.test.ts ===
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { validateConfig } from '../../src/validateConfig.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load test data
+const testDataPath = join(__dirname, '../../test-data/unit/validateConfig.json');
+const testData = JSON.parse(readFileSync(testDataPath, 'utf8'));
+
+// Run tests
+describe('validateConfig', () => {
+  testData.cases.forEach((testCase: any) => {
+    test(testCase.name, () => {
+      const [config] = testCase.input;
+      
+      if (testCase.throws) {
+        expect(() => validateConfig(config)).toThrow();
+      } else {
+        const result = validateConfig(config);
+        expect(result).toEqual(testCase.expected);
+      }
+    });
+  });
+});
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/unit/validateConfig.test.ts ===
 
