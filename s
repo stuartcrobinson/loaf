@@ -75,48 +75,57 @@ done
 # proj/comp/orch/src/index.ts
 # use-listener/instruct.md
 
+# /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+# /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/git-integration.test.ts
+# /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
+# /Users/stuart/repos/loaf/proj/comp/orch/src/types.ts
+# /Users/stuart/repos/loaf/proj/comp/orch/src/loadConfig.ts
+# /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-basic.test.ts
+# /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-abort.test.ts
+
+
+# /Users/stuart/repos/loaf/proj/comp/orch/test/execute.test.ts
+  
+# proj/comp/fs-ops/src/index.ts 
+# proj/comp/fs-ops/test/integration/write_action_result.test.ts
+# proj/comp/fs-guard/tsconfig.json 
+# package.json
+# tsconfig.json
+
+#  proj/comp/hooks/doc/ABSTRACT.md proj/comp/hooks/doc/API.md proj/comp/hooks/doc/ARCH.md proj/comp/orch/doc/API.md proj/comp/orch/doc/ARCH.md
+
+#  /Users/stuart/repos/loaf/proj/comp/config/src/index.ts
+# /Users/stuart/repos/loaf/proj/comp/config/src/load.ts
+# /Users/stuart/repos/loaf/proj/comp/config/src/create.ts
+# /Users/stuart/repos/loaf/proj/comp/config/src/types.ts
+# /Users/stuart/repos/loaf/proj/comp/config/src/validate.ts
+# /Users/stuart/repos/loaf/proj/comp/config/test/unit/load.test.ts
+# /Users/stuart/repos/loaf/proj/comp/config/test/unit/create.test.ts
+# /Users/stuart/repos/loaf/proj/comp/config/test/unit/validate.test.ts
+# /Users/stuart/repos/loaf/proj/comp/orch/src/loadConfig.ts
+# /Users/stuart/repos/loaf/proj/comp/orch/src/createStarterConfig.ts
+# /Users/stuart/repos/loaf/proj/comp/orch/src/types.ts
+# /Users/stuart/repos/loaf/proj/comp/hooks/src/parseYamlConfig.ts
+# /Users/stuart/repos/loaf/proj/comp/hooks/src/validateConfig.ts
+# /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+# /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
+# /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/git-integration.test.ts
+# /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-basic.test.ts
+# /Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-abort.test.ts
+# /Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md
+
+
 file_list=$(cat <<'EOF'
 
 
-/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/git-integration.test.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/orch/src/types.ts
-/Users/stuart/repos/loaf/proj/comp/orch/src/loadConfig.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-basic.test.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-abort.test.ts
-
-
-/Users/stuart/repos/loaf/proj/comp/orch/test/execute.test.ts
-  
-proj/comp/fs-ops/src/index.ts 
-proj/comp/fs-ops/test/integration/write_action_result.test.ts
-proj/comp/fs-guard/tsconfig.json 
-package.json
-tsconfig.json
-
- proj/comp/hooks/doc/ABSTRACT.md proj/comp/hooks/doc/API.md proj/comp/hooks/doc/ARCH.md proj/comp/orch/doc/API.md proj/comp/orch/doc/ARCH.md
-
- /Users/stuart/repos/loaf/proj/comp/config/src/index.ts
+/Users/stuart/repos/loaf/tsconfig.base.json
 /Users/stuart/repos/loaf/proj/comp/config/src/load.ts
-/Users/stuart/repos/loaf/proj/comp/config/src/create.ts
-/Users/stuart/repos/loaf/proj/comp/config/src/types.ts
 /Users/stuart/repos/loaf/proj/comp/config/src/validate.ts
-/Users/stuart/repos/loaf/proj/comp/config/test/unit/load.test.ts
-/Users/stuart/repos/loaf/proj/comp/config/test/unit/create.test.ts
-/Users/stuart/repos/loaf/proj/comp/config/test/unit/validate.test.ts
-/Users/stuart/repos/loaf/proj/comp/orch/src/loadConfig.ts
-/Users/stuart/repos/loaf/proj/comp/orch/src/createStarterConfig.ts
-/Users/stuart/repos/loaf/proj/comp/orch/src/types.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/src/parseYamlConfig.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/src/validateConfig.ts
 /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/git-integration.test.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-basic.test.ts
-/Users/stuart/repos/loaf/proj/comp/hooks/test/integration/hooks-abort.test.ts
-/Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md
-
+/Users/stuart/repos/loaf/proj/comp/config/test/integration/config-orch.test.ts
+/Users/stuart/repos/loaf/proj/comp/orch/test/factory.test.ts
+/Users/stuart/repos/loaf/MIGRATION.md
+/Users/stuart/repos/loaf/proj/comp/config/src/types.ts
 
 EOF
 )
