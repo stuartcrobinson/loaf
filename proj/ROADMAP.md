@@ -12,6 +12,7 @@ so what next...
 
 
 - review the allowed/exisitng tools/actions
+    - clean up fs-ops action handlers
     - rename them to actions?
     - drop dumb stuff like 'dir_create'
     - indicate in the unified yaml whether they're implemented yet or not.  so if not they should be totally ignored from everything. 
