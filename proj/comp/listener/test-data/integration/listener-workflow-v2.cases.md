@@ -828,7 +828,7 @@ path = "/tmp/t_listener_read_num/config.yaml"
 
 === LOAF RESULTS ===
 rn1 ✅ file_write /tmp/t_listener_read_num/config.yaml
-rn2 ✅ file_read_numbered /tmp/t_listener_read_num/config.yaml
+rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Tool 'file_read_numbered' is not in allowed-tools list
 === END ===
 
 Testing file read numbered output formatting.
@@ -868,28 +868,10 @@ path = "/tmp/t_listener_read_num/config.yaml"
 ````sh
 === LOAF RESULTS ===
 rn1 ✅ file_write /tmp/t_listener_read_num/config.yaml
-rn2 ✅ file_read_numbered /tmp/t_listener_read_num/config.yaml
+rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Tool 'file_read_numbered' is not in allowed-tools list
 === END ===
 
 === OUTPUTS ===
-
-[rn2] file_read_numbered:
-=== START FILE: [numbered] /tmp/t_listener_read_num/config.yaml ===
- 1: # Application Configuration
- 2: app:
- 3:   name: MyApp
- 4:   version: 1.0.0
- 5:   debug: true
- 6: 
- 7: database:
- 8:   host: localhost
- 9:   port: 5432
-10:   name: myapp_db
-11:   
-12: logging:
-13:   level: info
-14:   file: /var/log/myapp.log
-=== END FILE: [numbered] /tmp/t_listener_read_num/config.yaml ===
 === END ===
 ````
 
@@ -897,28 +879,10 @@ rn2 ✅ file_read_numbered /tmp/t_listener_read_num/config.yaml
 ````sh
 === LOAF RESULTS ===
 rn1 ✅ file_write /tmp/t_listener_read_num/config.yaml
-rn2 ✅ file_read_numbered /tmp/t_listener_read_num/config.yaml
+rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Tool 'file_read_numbered' is not in allowed-tools list
 === END ===
 
 === OUTPUTS ===
-
-[rn2] file_read_numbered:
-=== START FILE: [numbered] /tmp/t_listener_read_num/config.yaml ===
- 1: # Application Configuration
- 2: app:
- 3:   name: MyApp
- 4:   version: 1.0.0
- 5:   debug: true
- 6: 
- 7: database:
- 8:   host: localhost
- 9:   port: 5432
-10:   name: myapp_db
-11:   
-12: logging:
-13:   level: info
-14:   file: /var/log/myapp.log
-=== END FILE: [numbered] /tmp/t_listener_read_num/config.yaml ===
 === END ===
 ````
 

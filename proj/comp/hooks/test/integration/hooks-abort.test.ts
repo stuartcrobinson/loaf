@@ -15,6 +15,8 @@ describe('Hooks Abort Behavior', () => {
 
    // Create loaf.yml with a failing command
    const loafConfig = `version: 1
+allowed-tools:
+ - file_write
 hooks:
  before:
    - run: echo "FIRST_HOOK_RAN" > ${TEST_PATH}/first.txt

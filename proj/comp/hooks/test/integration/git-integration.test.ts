@@ -43,6 +43,10 @@ describe('Git Hooks Integration', () => {
     // Setup: Create loaf.yml with git hooks
     // Use relative paths since hooks run with cwd=REPO_DIR
     const loafConfig = `version: 1
+allowed-tools:
+  - file_write
+  - file_read
+  - exec
 hooks:
   before:
     - run: echo "BEFORE_HOOK_RAN" > .hook-trace
