@@ -5,6 +5,7 @@ describe('validateConfig', () => {
   test('accepts valid config', () => {
     const config = {
       version: 1,
+      'allowed-tools': ['file_read', 'file_write', 'exec'],
       hooks: {
         before: [{ run: 'echo test' }],
         after: [{ run: 'echo done' }]
@@ -96,8 +97,43 @@ describe('validateConfig', () => {
     expect(result.error).toBe('fs-guard.followSymlinks must be a boolean');
   });
 
-  test('accepts minimal config', () => {
+  test('rejects missing allowed-tools', () => {
     const result = validateConfig({ version: 1 });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('Config missing required allowed-tools');
+  });
+
+  test('rejects non-array allowed-tools', () => {
+    const result = validateConfig({
+      version: 1,
+      'allowed-tools': 'not an array'
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('allowed-tools must be an array');
+  });
+
+  test('rejects non-string items in allowed-tools', () => {
+    const result = validateConfig({
+      version: 1,
+      'allowed-tools': ['file_read', 123, 'file_write']
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('allowed-tools must contain only strings');
+  });
+
+  test('accepts valid allowed-tools', () => {
+    const result = validateConfig({
+      version: 1,
+      'allowed-tools': ['file_read', 'file_write', 'exec']
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  test('accepts minimal config', () => {
+    const result = validateConfig({ 
+      version: 1,
+      'allowed-tools': []
+    });
     expect(result.valid).toBe(true);
   });
 

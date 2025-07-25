@@ -5,7 +5,6 @@ version: 1
 allowed-tools:
   - file_write
   - file_read
-  - file_create
   - file_delete
   - file_move
   - file_copy

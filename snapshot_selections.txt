@@ -1,1056 +1,224 @@
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
-import type { LoafAction, ParseResult, ParseError } from '../../nesl-action-parser/src/index.js';
-import { parseNeslResponse } from '../../nesl-action-parser/src/index.js';
-import type { FileOpResult } from '../../fs-ops/src/index.js';
-import { FsOpsExecutor } from '../../fs-ops/src/index.js';
-import type { HooksConfig, HookContext, HookResult } from '../../hooks/src/index.js';
-import { HooksManager } from '../../hooks/src/index.js';
-import { FsGuard } from '../../fs-guard/src/index.js';
-import { ExecExecutor } from '../../exec/src/index.js';
-import { load as loadYaml } from 'js-yaml';
-import { readFile } from 'fs/promises';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { loadConfig } from '../../config/src/index.js';
-import type { LoafConfig } from '../../config/src/index.js';
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/test/unit/validate.test.ts ===
+import { describe, test, expect } from 'vitest';
+import { validateConfig } from '../../src/validate.js';
 
-export interface ExecutionResult {
-  success: boolean;
-  totalBlocks: number;
-  executedActions: number;
-  results: ActionResult[];
-  parseErrors: ParseError[];
-  fatalError?: string;
-  hookErrors?: {
-    before?: string[];
-    after?: string[];
-  };
-  debug?: {
-    parseDebug?: any;
-  };
-}
-
-export interface ActionResult {
-  seq: number;
-  blockId: string;
-  action: string;
-  params: Record<string, any>;
-  success: boolean;
-  error?: string;
-  data?: any;
-}
-
-export interface LoafOptions {
-  repoPath?: string;
-  gitCommit?: boolean;
-  hooks?: HooksConfig;
-  enableHooks?: boolean;
-}
-
-export class Loaf {
-  private constructor(
-    private config: LoafConfig,
-    private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>>,
-    private hooksManager: HooksManager | undefined,
-    private repoPath: string
-  ) {}
-
-  static async create(options: LoafOptions = {}): Promise<Loaf> {
-    const repoPath = options.repoPath || process.cwd();
-    
-    // Load configuration
-    const config = await loadConfig(repoPath);
-    
-    // Initialize executors
-    const executors = await Loaf.initializeExecutors(config, repoPath);
-    
-    // Initialize hooks if enabled
-    let hooksManager: HooksManager | undefined;
-    if (options.enableHooks !== false) {
-      if (options.hooks) {
-        // Use provided hooks configuration
-        hooksManager = new HooksManager(options.hooks, undefined, repoPath);
-      } else if (config.hooks) {
-        // Use hooks from loaded config
-        hooksManager = new HooksManager(config.hooks, config.vars, repoPath);
-      }
-    }
-    
-    return new Loaf(config, executors, hooksManager, repoPath);
-  }
-
-  /**
-   * Parse and execute all NESL blocks in LLM output
-   * Executes all valid actions sequentially, collecting both successes and failures
-   */
-  async execute(llmOutput: string): Promise<ExecutionResult> {
-    const hookErrors: ExecutionResult['hookErrors'] = {};
-
-    try {
-
-      // Run before hooks
-      if (this.hooksManager) {
-        try {
-          const beforeResult = await this.hooksManager.runBefore();
-          if (!beforeResult.success) {
-            // Before hook failure is fatal
-            return {
-              success: false,
-              totalBlocks: 0,
-              executedActions: 0,
-              results: [],
-              parseErrors: [],
-              hookErrors: {
-                before: beforeResult.errors?.map(e => `${e.command}: ${e.error}`) || ['Unknown before hook error']
-              },
-              fatalError: 'Before hooks failed - aborting execution'
-            };
-          }
-        } catch (error) {
-          return {
-            success: false,
-            totalBlocks: 0,
-            executedActions: 0,
-            results: [],
-            parseErrors: [],
-            fatalError: `Before hooks threw unexpected error: ${error instanceof Error ? error.message : String(error)}`
-          };
-        }
-      }
-
-      // Parse NESL blocks
-      const parseResult = await parseNeslResponse(llmOutput);
-
-      // Debug info captured in parseResult.debug
-
-      // Execute each valid action sequentially
-      const results: ActionResult[] = [];
-      let seq = 1;
-
-      for (const action of parseResult.actions) {
-        const result = await this.executeAction(action, seq++);
-        results.push(result);
-      }
-
-      // Calculate execution success (before considering after hooks)
-      const allActionsSucceeded = results.every(r => r.success);
-      const noParseErrors = parseResult.errors.length === 0;
-      const executionSuccess = allActionsSucceeded && noParseErrors;
-
-      // Run after hooks with context
-      if (this.hooksManager) {
-        try {
-          // Build rich context for hooks
-          const modifiedFiles = new Set<string>();
-          const operations: string[] = [];
-          const errors: string[] = [];
-
-          for (const result of results) {
-            if (result.action.startsWith('file_') && result.params.path) {
-              modifiedFiles.add(result.params.path);
-            }
-
-            operations.push(`${result.action}${result.success ? '' : ' (failed)'}`);
-
-            if (!result.success && result.error) {
-              errors.push(`${result.action}: ${result.error}`);
-            }
-          }
-
-          const afterContext: HookContext = {
-            success: executionSuccess,
-            executedActions: results.length,
-            totalBlocks: parseResult.summary.totalBlocks,
-            modifiedFiles: Array.from(modifiedFiles).join(','),
-            operations: operations.join(','),
-            errors: errors.join('; '),
-            errorCount: errors.length
-          };
-
-          const afterResult = await this.hooksManager.runAfter(afterContext);
-          if (!afterResult.success) {
-            // After hook failure affects overall success
-            hookErrors.after = afterResult.errors?.map(e => `${e.command}: ${e.error}`) || ['Unknown after hook error'];
-          }
-        } catch (error) {
-          // After hook unexpected errors also affect success
-          hookErrors.after = [`After hooks threw unexpected error: ${error instanceof Error ? error.message : String(error)}`];
-        }
-      }
-
-      return {
-        success: executionSuccess && !hookErrors.after, // After hook errors affect overall success
-        totalBlocks: parseResult.summary.totalBlocks,
-        executedActions: results.length,
-        results,
-        parseErrors: parseResult.errors,
-        ...(Object.keys(hookErrors).length > 0 && { hookErrors }),
-        debug: {
-          parseDebug: parseResult.debug
-        }
-      };
-
-    } catch (error) {
-      // Only truly unexpected errors should reach here
-      return {
-        success: false,
-        totalBlocks: 0,
-        executedActions: 0,
-        results: [],
-        parseErrors: [],
-        fatalError: `Unexpected error in execute: ${error instanceof Error ? error.message : String(error)}`
-      };
-    }
-  }
-
-
-
-  /**
-   * Initialize action executors with configuration
-   */
-  private static async initializeExecutors(config: LoafConfig, repoPath: string): Promise<Map<string, (action: LoafAction) => Promise<FileOpResult>>> {
-
-    // Create fs-guard
-    const fsGuard = new FsGuard(
-      config['fs-guard'] || {
-        allowed: [`${repoPath}/**`, '/tmp/**'],
-        denied: ['/**/.git/**', '/**/.ssh/**', '/etc/**', '/sys/**', '/proc/**']
+describe('validateConfig', () => {
+  test('accepts valid config', () => {
+    const config = {
+      version: 1,
+      hooks: {
+        before: [{ run: 'echo test' }],
+        after: [{ run: 'echo done' }]
       },
-      repoPath
-    );
-
-    // Create executors
-    const fsOps = new FsOpsExecutor(fsGuard);
-    const exec = new ExecExecutor();
-
-    // Load unified-design.yaml for routing
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const yamlPath = join(__dirname, '../../../../unified-design.yaml');
-    const yamlContent = await readFile(yamlPath, 'utf8');
-    const design = loadYaml(yamlContent) as any;
-
-    // Build routing table from YAML
-    const executors = new Map<string, (action: LoafAction) => Promise<FileOpResult>>();
-
-    for (const [actionName, actionDef] of Object.entries(design.tools)) {
-      const executorName = (actionDef as any).executor || Loaf.inferExecutor(actionName, actionDef);
-
-      switch (executorName) {
-        case 'fs-ops':
-          executors.set(actionName, (action) => fsOps.execute(action));
-          break;
-        case 'exec':
-          executors.set(actionName, (action) => exec.execute(action));
-          break;
-        // Skip unimplemented executors
-        case 'context':
-        case 'git':
-          break;
-        default:
-          console.warn(`Unknown executor: ${executorName} for action: ${actionName}`);
+      vars: {
+        TEST: 'value'
+      },
+      'fs-guard': {
+        allowed: ['./**'],
+        denied: ['**/.git/**'],
+        followSymlinks: false
       }
-    }
-
-    return executors;
-  }
-
-  /**
-   * Infer executor from action name/type when not explicitly defined
-   * Temporary fallback until all YAML entries have executor field
-   */
-  private static inferExecutor(actionName: string, actionDef: any): string | null {
-    // File/dir operations go to fs-ops
-    if (actionName.startsWith('file_') || actionName.startsWith('files_') ||
-      actionName.startsWith('dir_') || ['ls', 'grep', 'glob'].includes(actionName)) {
-      return 'fs-ops';
-    }
-
-    // Exec operations
-    if (actionName === 'exec') {
-      return 'exec';
-    }
-
-    // Context operations (future)
-    if (actionName.startsWith('context_')) {
-      return 'context';
-    }
-
-    // Git operations (future)
-    if (actionName.startsWith('git_') || actionName === 'undo') {
-      return 'git';
-    }
-
-    return null;
-  }
-
-  /**
-   * Execute a single action and format the result
-   * Never throws - all errors returned in ActionResult
-   */
-  private async executeAction(action: LoafAction, seq: number): Promise<ActionResult> {
-    const executor = this.executors.get(action.action);
-
-    if (!executor) {
-      return {
-        seq,
-        blockId: action.metadata.blockId,
-        action: action.action,
-        params: action.parameters,
-        success: false,
-        error: `Unknown action: ${action.action}`
-      };
-    }
-
-    try {
-      // Add default cwd for exec actions if not specified
-      const enhancedAction = action.action === 'exec' && !action.parameters.cwd
-        ? { ...action, parameters: { ...action.parameters, cwd: this.repoPath } }
-        : action;
-
-      const result = await executor(enhancedAction);
-
-      return {
-        seq,
-        blockId: action.metadata.blockId,
-        action: action.action,
-        params: action.parameters,
-        success: result.success,
-        ...(result.error && { error: result.error }),
-        ...(result.data !== undefined && { data: result.data }),
-        // Include exec-specific fields at top level
-        ...(action.action === 'exec' && {
-          data: {
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exit_code: result.exit_code
-          }
-        })
-      };
-
-    } catch (error) {
-      // Executors should never throw, but handle just in case
-      return {
-        seq,
-        blockId: action.metadata.blockId,
-        action: action.action,
-        params: action.parameters,
-        success: false,
-        error: `Unexpected executor error: ${error instanceof Error ? error.message : String(error)}`
-      };
-    }
-  }
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/src/load.ts ===
-import { readFile } from 'fs/promises';
-import { join } from 'path';
-import { load as loadYaml } from 'js-yaml';
-import type { LoafConfig, FsGuardConfig } from './types.js';
-import { validateConfig } from './validate.js';
-
-export async function loadConfig(repoPath: string): Promise<LoafConfig> {
-  const configPath = join(repoPath, 'loaf.yml');
-
-  try {
-    const content = await readFile(configPath, 'utf8');
-    const config = loadYaml(content) as LoafConfig;
-
-    // Validate config structure
-    const validation = validateConfig(config);
-    if (!validation.valid) {
-      throw new Error(`Invalid config: ${validation.error}`);
-    }
-
-    return config;
-  } catch (error: any) {
-    if (error.code === 'ENOENT') {
-      // Return default config when file doesn't exist
-      return {
-        version: 1,
-        'fs-guard': {
-          allowed: [`${repoPath}/**`, '/tmp/**'],
-          denied: ['/**/.git/**', '/**/.ssh/**', '/etc/**', '/sys/**', '/proc/**']
-        }
-      };
-    }
-    throw error;
-  }
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/src/load.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/src/create.ts ===
-import { writeFile } from 'fs/promises';
-import { join } from 'path';
-
-const STARTER_LOAF_YML = `# Loaf configuration
-version: 1
-
-# File system guard configuration
-fs-guard:
-  # Allowed paths (supports glob patterns)
-  # Relative paths are resolved from this config file's location
-  allowed:
-    - "./**"           # All files in project
-    - "/tmp/**"        # Temporary files
-  
-  # Denied paths (more specific rules override less specific)
-  denied:
-    - "**/.git/**"     # Git internals
-    - "**/.ssh/**"     # SSH keys
-    - "**/node_modules/**"  # Dependencies
-  
-  # Whether to follow symlinks (default: false)
-  followSymlinks: false
-
-# Git hooks configuration
-hooks:
-  before: []
-  after: []
-  
-  # Example hooks (uncomment to use):
-  # before:
-  #   - run: git stash --include-untracked
-  #     continueOnError: false
-  
-  # after:
-  #   - run: git add -A
-  #   - run: git commit -m "\${COMMIT_MSG}"
-  #     continueOnError: false
-  #   - run: git push
-  #     continueOnError: true
-  #     timeout: 10000  # 10s for slow networks
-
-# Variables available in commands
-vars:
-  COMMIT_MSG: "AI-assisted changes"
-  # Add more variables as needed
-`;
-
-/**
- * Creates a starter loaf.yml file if it doesn't exist
- * @returns true if file was created, false if already exists
- */
-export async function createStarterConfig(repoPath: string): Promise<boolean> {
-  const configPath = join(repoPath, 'loaf.yml');
-  
-  try {
-    await writeFile(configPath, STARTER_LOAF_YML, { flag: 'wx' });
-    return true;
-  } catch (error: any) {
-    if (error.code === 'EEXIST') {
-      return false;
-    }
-    throw error;
-  }
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/src/create.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
-import { promisify } from 'util';
-import { exec } from 'child_process';
-import { interpolateCommand } from './interpolateCommand.js';
-import { validateCommand } from './validateCommand.js';
-import { formatHookResult } from './formatHookResult.js';
-import type { CommandResult } from './types.js';
-
-// Public types
-export interface HooksConfig {
-  version?: number;
-  before?: Command[];
-  after?: Command[];
-  vars?: Record<string, string>;
-}
-
-export interface Command {
-  run: string;
-  continueOnError?: boolean;
-  timeout?: number;
-  cwd?: string;
-}
-
-export interface HookContext {
-  [key: string]: string | number | boolean;
-}
-
-export interface HookResult {
-  success: boolean;
-  executed: number;
-  errors?: Array<{
-    command: string;
-    error: string;
-  }>;
-}
-
-// Promisified exec
-const execAsync = promisify(exec);
-
-// Main class
-export class HooksManager {
-  private config: HooksConfig;
-  private vars: Record<string, string>;
-  private repoPath: string;
-
-  constructor(config?: HooksConfig, vars?: Record<string, string>, repoPath?: string) {
-    this.config = config || {};
-    this.vars = vars || {};
-    this.repoPath = repoPath || process.cwd();
-  }
-
-  async runBefore(context?: HookContext): Promise<HookResult> {
-    const commands = this.config.before || [];
-    return this.runCommands(commands, context);
-  }
-
-  async runAfter(context?: HookContext): Promise<HookResult> {
-    const commands = this.config.after || [];
-    return this.runCommands(commands, context);
-  }
-
-
-
-  private async runCommands(commands: Command[], context?: HookContext): Promise<HookResult> {
-    const results: CommandResult[] = [];
-
-    for (const cmd of commands) {
-      try {
-        // Interpolate variables
-        const interpolatedCmd = interpolateCommand(cmd, this.vars, context);
-
-        // Validate command
-        const validation = validateCommand(interpolatedCmd);
-        if (!validation.valid) {
-          const result: CommandResult = {
-            command: cmd.run,
-            success: false,
-            error: validation.error || 'Invalid command'
-          };
-          results.push(result);
-
-          if (!cmd.continueOnError) {
-            break;
-          }
-          continue;
-        }
-
-        // Execute command
-        const result = await this.executeCommand(interpolatedCmd);
-
-        results.push({
-          command: cmd.run,
-          ...result
-        });
-
-        if (!result.success && !cmd.continueOnError) {
-          break;
-        }
-      } catch (error: any) {
-        const result: CommandResult = {
-          command: cmd.run,
-          success: false,
-          error: error.message
-        };
-        results.push(result);
-
-        if (!cmd.continueOnError) {
-          break;
-        }
-      }
-    }
-
-    return formatHookResult(results);
-  }
-
-  private async executeCommand(cmd: Command): Promise<Omit<CommandResult, 'command'>> {
-    const timeout = cmd.timeout || 30000;
-    const options = {
-      cwd: cmd.cwd || this.repoPath,
-      timeout,
-      encoding: 'utf8' as const,
-      shell: true  // Ensure shell interpretation for redirects
     };
 
-    try {
-      const { stdout, stderr } = await execAsync(cmd.run, options);
-      return {
-        success: true,
-        stdout: stdout || '',
-        stderr: stderr || ''
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error.message,
-        stdout: error.stdout || '',
-        stderr: error.stderr || ''
-      };
-    }
-  }
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts ===
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { readFileSync, existsSync, mkdirSync, rmSync } from 'fs';
-import { join } from 'path';
-import { Loaf } from '../../src/index.js';
-import { parseTestFile } from '../utils/parseTestFile.js';
-
-describe('Hooks Integration', () => {
-  const testDataPath = join(import.meta.dirname, '../../test-data/integration/hooks-integration.md');
-  const testCases = parseTestFile(testDataPath);
-
-  beforeEach(() => {
-    // Ensure temp directories exist
-    if (!existsSync('/tmp')) {
-      throw new Error('Tests require /tmp directory');
-    }
+    const result = validateConfig(config);
+    expect(result.valid).toBe(true);
+    expect(result.error).toBeUndefined();
   });
 
-  afterEach(() => {
-    // Cleanup test directories
-    const dirs = [
-      '/tmp/t_hooks_integration_001',
-      '/tmp/t_hooks_integration_002',
-      '/tmp/t_hooks_integration_003',
-      '/tmp/t_hooks_integration_004',
-      '/tmp/t_hooks_integration_005'
-    ];
-
-    for (const dir of dirs) {
-      if (existsSync(dir)) {
-        rmSync(dir, { recursive: true, force: true });
-      }
-    }
+  test('rejects non-object config', () => {
+    const result = validateConfig('not an object');
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('Config must be an object');
   });
 
-  for (const testCase of testCases) {
-    test(testCase.name, async () => {
-      // Setup
-      if (testCase.config?.repoPath && !existsSync(testCase.config.repoPath)) {
-        mkdirSync(testCase.config.repoPath, { recursive: true });
-      }
+  test('rejects missing version', () => {
+    const result = validateConfig({ hooks: {} });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('Config missing version');
+  });
 
-      // Create Loaf instance with test config
-      const loaf = await Loaf.create(testCase.config);
+  test('rejects non-number version', () => {
+    const result = validateConfig({ version: '1' });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('Config version must be a number');
+  });
 
-
-      // Execute
-      const result = await loaf.execute(testCase.input);
-
-      // Debug output
-      console.log(`\n=== Test: ${testCase.name} ===`);
-      console.log('Config:', JSON.stringify(testCase.config, null, 2));
-      console.log('Result:', JSON.stringify(result, null, 2));
-
-      // Basic assertions
-      expect(result.success).toBe(testCase.expected.success);
-      expect(result.totalBlocks).toBe(testCase.expected.totalBlocks);
-      expect(result.executedActions).toBe(testCase.expected.executedActions);
-
-      // Verify hook errors if expected
-      if (testCase.expected.hookErrors) {
-        expect(result.hookErrors).toBeDefined();
-        if (testCase.expected.hookErrors.before) {
-          expect(result.hookErrors?.before).toBeDefined();
-          expect(result.hookErrors?.before?.length).toBeGreaterThan(0);
-        }
-      }
-
-      // Verify fatal error if expected
-      if (testCase.expected.fatalError) {
-        expect(result.fatalError).toBe(testCase.expected.fatalError);
-      }
-
-      // Test-specific verifications
-      if (testCase.verify) {
-        const repoPath = testCase.config?.repoPath;
-
-        if (!repoPath) {
-          throw new Error(`Test ${testCase.name} has verify=true but no repoPath in config`);
-        }
-
-        switch (testCase.name) {
-          case '001-basic-hooks-execution': {
-            const tracePath = join(repoPath, 'hook-trace.txt');
-            expect(existsSync(tracePath)).toBe(true);
-            const trace = readFileSync(tracePath, 'utf8');
-            expect(trace).toContain('BEFORE_RAN');
-            expect(trace).toContain('AFTER_RAN');
-            expect(trace).toContain('FILES_MODIFIED=');
-            break;
-          }
-
-          case '002-hooks-with-failures': {
-            const resultPath = join(repoPath, 'result.txt');
-            expect(existsSync(resultPath)).toBe(true);
-            const content = readFileSync(resultPath, 'utf8');
-            expect(content).toContain('SUCCESS=false');
-            expect(content).toContain('ERRORS=1');
-            break;
-          }
-
-          case '003-before-hook-failure-aborts': {
-            const testPath = join(repoPath, 'test.txt');
-            const afterPath = join(repoPath, 'after.txt');
-            expect(existsSync(testPath)).toBe(false);
-            expect(existsSync(afterPath)).toBe(false);
-            break;
-          }
-
-          case '004-context-variables-in-hooks': {
-            const summaryPath = join(repoPath, 'summary.txt');
-            expect(existsSync(summaryPath)).toBe(true);
-            const summary = readFileSync(summaryPath, 'utf8');
-            expect(summary).toContain('Total blocks: 2');
-            expect(summary).toContain('Executed: 2');
-            expect(summary).toContain('Operations: file_write,file_read');
-            break;
-          }
-
-          case '005-loaf-yml-auto-creation': {
-            const configPath = join(repoPath, 'loaf.yml');
-            expect(existsSync(configPath)).toBe(true);
-            const testPath = join(repoPath, 'test.txt');
-            expect(existsSync(testPath)).toBe(true);
-            break;
-          }
-        }
-      }
+  test('rejects non-array hooks.before', () => {
+    const result = validateConfig({
+      version: 1,
+      hooks: { before: 'not an array' }
     });
-  }
-});
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/integration/hooks-integration.test.ts ===
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('hooks.before must be an array');
+  });
 
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/listener/test/integration/listener-workflow-v2.test.ts ===
-import { describe, it, expect, beforeAll } from 'vitest';
-import { readFile, writeFile, mkdir, rm } from 'fs/promises';
+  test('rejects non-array hooks.after', () => {
+    const result = validateConfig({
+      version: 1,
+      hooks: { after: {} }
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('hooks.after must be an array');
+  });
+
+  test('rejects non-object vars', () => {
+    const result = validateConfig({
+      version: 1,
+      vars: []
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('vars must be an object');
+  });
+
+  test('rejects non-string var values', () => {
+    const result = validateConfig({
+      version: 1,
+      vars: { TEST: 123 }
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe("var 'TEST' must be a string");
+  });
+
+  test('rejects non-array fs-guard.allowed', () => {
+    const result = validateConfig({
+      version: 1,
+      'fs-guard': { allowed: 'not an array' }
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('fs-guard.allowed must be an array');
+  });
+
+  test('rejects non-boolean fs-guard.followSymlinks', () => {
+    const result = validateConfig({
+      version: 1,
+      'fs-guard': { followSymlinks: 'yes' }
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('fs-guard.followSymlinks must be a boolean');
+  });
+
+  test('accepts minimal config', () => {
+    const result = validateConfig({ version: 1 });
+    expect(result.valid).toBe(true);
+  });
+
+  test('accepts empty hooks', () => {
+    const result = validateConfig({
+      version: 1,
+      hooks: {}
+    });
+    expect(result.valid).toBe(true);
+  });
+});
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/test/unit/validate.test.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/execute.test.ts ===
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync, existsSync, rmSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { marked } from 'marked';
-import clipboard from 'clipboardy';
+import { marked, Token } from 'marked';
+import { Loaf } from '../src/index.js';
+import { clearActionSchemaCache } from '../../nesl-action-parser/src/index.js';
 
-import { startListener } from '../../src/listener.js';
-import type { ListenerHandle } from '../../src/types.js';
-// // At the top of your test file
-// import { test } from 'vitest';
-// test.concurrent = false;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const testPath = join(__dirname, '../test-data/execute/basic-operations.md');
+const mdContent = readFileSync(testPath, 'utf8');
 
-interface TestCase {
-  name: string;
-  initialContent: string;
-  newContent: string;
-  expectedPrepended: string;
-  expectedOutput: string;
-  expectedClipboard: string;
-}
+const tokens = marked.lexer(mdContent);
+const codeBlocks = tokens.filter(t => t.type === 'code') as Array<Token & { type: 'code', text: string, lang?: string }>;
+const testNames = tokens
+  .filter(t => t.type === 'heading' && 'depth' in t && t.depth === 3)
+  .map(t => (t as any).text as string);
 
-// Parse test cases from markdown
-async function parseTestCases(): Promise<TestCase[]> {
-  const testDataPath = join(__dirname, '../../test-data/integration/listener-workflow-v2.cases.md');
-  const markdown = await readFile(testDataPath, 'utf-8');
+const testFiles = [
+  '/tmp/test.txt',
+  '/tmp/first.txt',
+  '/tmp/second.txt',
+  '/tmp/bad.txt',
+  '/tmp/duplicate.txt',
+  '/tmp/good.txt',
+  '/tmp/does-not-exist.txt',
+  '/tmp/read-test.txt',
+  '/tmp/source-file.txt',
+  '/tmp/destination-file.txt',
+  '/tmp/replace-single.txt',
+  '/tmp/replace-all.txt',
+  '/tmp/multiline.txt',
+  '/tmp/multiple-foo.txt',
+  '/tmp/count-test.txt',
+  '/tmp/move-source.txt',
+  '/tmp/move-dest.txt',
+  '/tmp/empty-replace.txt',
+  '/tmp/parent-test.txt'
+];
 
-  const tokens = marked.lexer(markdown);
-  const testCases: TestCase[] = [];
-  let currentTest: Partial<TestCase> | null = null;
-  let codeBlockCount = 0;
+const testDirs = [
+  '/tmp/new',
+  '/tmp/007-file-move-success',
+  '/tmp/016-file-move-creates-parent-dirs',
+  '/tmp/017-files-read-multiple',
+  '/tmp/018-files-read-with-missing'
+];
 
-  for (const token of tokens) {
-    // Test case name (h3)
-    if (token.type === 'heading' && token.depth === 3) {
-      // Save previous test if complete
-      if (currentTest && currentTest.name &&
-        currentTest.initialContent &&
-        currentTest.newContent &&
-        currentTest.expectedPrepended &&
-        currentTest.expectedOutput &&
-        currentTest.expectedClipboard) {
-        testCases.push(currentTest as TestCase);
-      }
+describe('Loaf.execute()', () => {
+  let loaf: Loaf;
 
-      // Start new test
-      currentTest = { name: token.text };
-      codeBlockCount = 0;
-    }
-
-    // Code blocks - just take them in order, ignoring h4 headers
-    if (token.type === 'code' && currentTest) {
-      const content = token.text;
-      codeBlockCount++;
-
-      switch (codeBlockCount) {
-        case 1:
-          currentTest.initialContent = content;
-          break;
-        case 2:
-          currentTest.newContent = content;
-          break;
-        case 3:
-          currentTest.expectedPrepended = content;
-          break;
-        case 4:
-          currentTest.expectedOutput = content;
-          break;
-        case 5:
-          currentTest.expectedClipboard = content;
-          break;
+  beforeEach(async () => {
+    // Clear the action schema cache to pick up latest definitions
+    clearActionSchemaCache();
+    loaf = await Loaf.create();
+    // Clean up files
+    for (const path of testFiles) {
+      try {
+        if (existsSync(path)) rmSync(path);
+      } catch (err) {
+        // Continue cleanup even if one fails
       }
     }
-  }
-
-  // Don't forget the last test case
-  if (currentTest && currentTest.name &&
-    currentTest.initialContent &&
-    currentTest.newContent &&
-    currentTest.expectedPrepended &&
-    currentTest.expectedOutput &&
-    currentTest.expectedClipboard) {
-    testCases.push(currentTest as TestCase);
-  }
-
-  return testCases;
-}
-
-// Helper to extract test directory name from test case
-function getTestDir(testCaseName: string): string {
-  const safeName = testCaseName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  return `/tmp/t_listener_${safeName}`;
-}
-
-// Helper to poll for file content change
-async function pollForFileChange(
-  filePath: string,
-  initialContent: string,
-  timeoutMs: number = 1000
-): Promise<string> {
-  const startTime = Date.now();
-  let lastContent = initialContent;
-
-  while (Date.now() - startTime < timeoutMs) {
-    try {
-      const content = await readFile(filePath, 'utf-8');
-      if (content !== lastContent && content.includes('=== LOAF RESULTS ===')) {
-        return content;
+    // Clean up directories
+    for (const path of testDirs) {
+      try {
+        if (existsSync(path)) rmSync(path, { recursive: true, force: true });
+      } catch (err) {
+        // Continue cleanup even if one fails
       }
-      lastContent = content;
-    } catch { }
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  throw new Error(`Timeout waiting for file change after ${timeoutMs}ms`);
-}
-
-// Load test cases at module level
-const testCasesPromise = parseTestCases();
-
-
-export async function listenerWorkflowTests() {
-  // Load test cases before defining tests
-  const testCases = await testCasesPromise;
-
-  // Use it.each to create separate test for each test case
-  it.each(testCases)('$name', async (testCase) => {
-    let handle: ListenerHandle | null = null;
-    const testDir = getTestDir(testCase.name);
-    const testFile = join(testDir, 'test.txt');
-    const outputFile = join(testDir, '.loaf-output-latest.txt');
-
-    try {
-      // Setup
-      await mkdir(testDir, { recursive: true });
-      await writeFile(testFile, testCase.initialContent);
-
-      // Start listener
-      handle = await startListener({
-        filePath: testFile,
-        debounceMs: 100
-      });
-
-      // Wait for initial processing
-      await pollForFileChange(testFile, testCase.initialContent);
-
-      // Wait for debounce to settle
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      // Write new content
-      await writeFile(testFile, testCase.newContent);
-
-      // Wait for processing to complete
-      await pollForFileChange(testFile, testCase.newContent);
-
-      // Wait a bit more for clipboard and output file writes
-      await new Promise(resolve => setTimeout(resolve, 200));
-
-      // Read actual results
-      const actualPrepended = await readFile(testFile, 'utf-8');
-      const actualOutput = await readFile(outputFile, 'utf-8');
-      const actualClipboard = await clipboard.read();
-
-      // Compare results (exact match)
-      expect(actualPrepended).toBe(testCase.expectedPrepended);
-      expect(actualOutput).toBe(testCase.expectedOutput);
-      expect(actualClipboard).toBe(testCase.expectedClipboard);
-
-    } finally {
-      // Cleanup
-      if (handle) {
-        await handle.stop();
-      }
-      await rm(testDir, { recursive: true, force: true });
     }
-  });
-}
-
-
-
-// Only run directly if this file is executed, not imported
-if (import.meta.url === `file://${process.argv[1]}`) {
-  describe('listener workflow v2', async () => {
-    await listenerWorkflowTests();
-  });
-}
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/listener/test/integration/listener-workflow-v2.test.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/test/unit/load.test.ts ===
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
-import { join } from 'path';
-import { loadConfig } from '../../src/load.js';
-
-const TEST_DIR = '/tmp/t_config_load_test';
-
-describe('loadConfig', () => {
-  beforeEach(() => {
-    if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
-    }
-    mkdirSync(TEST_DIR, { recursive: true });
   });
 
   afterEach(() => {
-    if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
+    // Clean up files
+    for (const path of testFiles) {
+      try {
+        if (existsSync(path)) rmSync(path);
+      } catch (err) {
+        // Continue cleanup even if one fails
+      }
+    }
+    // Clean up directories
+    for (const path of testDirs) {
+      try {
+        if (existsSync(path)) rmSync(path, { recursive: true, force: true });
+      } catch (err) {
+        // Continue cleanup even if one fails
+      }
     }
   });
 
-  test('loads valid config', async () => {
-    const configContent = `version: 1
-hooks:
-  before:
-    - run: echo "test"
-vars:
-  TEST: value
-fs-guard:
-  allowed:
-    - "./**"
-`;
-    writeFileSync(join(TEST_DIR, 'loaf.yml'), configContent);
+  testNames.forEach((name, i) => {
+    const baseIndex = i * 2;
+    it(name, async () => {
+      const input = codeBlocks[baseIndex].text;
+      const expected = JSON.parse(codeBlocks[baseIndex + 1].text);
+      const result = await loaf.execute(input);
 
-    const config = await loadConfig(TEST_DIR);
-    
-    expect(config.version).toBe(1);
-    expect(config.hooks?.before).toHaveLength(1);
-    expect(config.vars?.TEST).toBe('value');
-    expect(config['fs-guard']?.allowed).toContain('./**');
-  });
-
-  test('returns default config when file missing', async () => {
-    const config = await loadConfig(TEST_DIR);
-    
-    expect(config.version).toBe(1);
-    expect(config['fs-guard']).toBeDefined();
-    expect(config['fs-guard']?.allowed).toContain(`${TEST_DIR}/**`);
-    expect(config['fs-guard']?.allowed).toContain('/tmp/**');
-    expect(config.hooks).toBeUndefined();
-  });
-
-  test('throws on invalid YAML', async () => {
-    const invalidYaml = `version: 1
-  invalid: yaml: structure
-`;
-    writeFileSync(join(TEST_DIR, 'loaf.yml'), invalidYaml);
-
-    await expect(loadConfig(TEST_DIR)).rejects.toThrow('Invalid YAML');
-  });
-
-  test('throws on invalid config structure', async () => {
-    const invalidConfig = `version: "not a number"`;
-    writeFileSync(join(TEST_DIR, 'loaf.yml'), invalidConfig);
-
-    await expect(loadConfig(TEST_DIR)).rejects.toThrow('Invalid config: Config version must be a number');
-  });
-
-  test('throws on missing version', async () => {
-    const noVersion = `hooks:
-  before:
-    - run: echo "test"
-`;
-    writeFileSync(join(TEST_DIR, 'loaf.yml'), noVersion);
-
-    await expect(loadConfig(TEST_DIR)).rejects.toThrow('Invalid config: Config missing version');
+      // Remove debug field for comparison since test data doesn't include it
+      const { debug, ...resultWithoutDebug } = result;
+      expect(resultWithoutDebug).toEqual(expected);
+    });
   });
 });
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/test/unit/load.test.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/config/test/unit/create.test.ts ===
-import { describe, test, expect, beforeEach, afterEach } from 'vitest';
-import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
-import { join } from 'path';
-import { createStarterConfig } from '../../src/create.js';
-
-const TEST_DIR = '/tmp/t_config_create_test';
-
-describe('createStarterConfig', () => {
-  beforeEach(() => {
-    if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
-    }
-    mkdirSync(TEST_DIR, { recursive: true });
-  });
-
-  afterEach(() => {
-    if (existsSync(TEST_DIR)) {
-      rmSync(TEST_DIR, { recursive: true, force: true });
-    }
-  });
-
-  test('creates starter config when missing', async () => {
-    const created = await createStarterConfig(TEST_DIR);
-    
-    expect(created).toBe(true);
-    expect(existsSync(join(TEST_DIR, 'loaf.yml'))).toBe(true);
-    
-    const content = readFileSync(join(TEST_DIR, 'loaf.yml'), 'utf8');
-    expect(content).toContain('version: 1');
-    expect(content).toContain('fs-guard:');
-    expect(content).toContain('hooks:');
-    expect(content).toContain('vars:');
-  });
-
-  test('returns false when file exists', async () => {
-    writeFileSync(join(TEST_DIR, 'loaf.yml'), 'existing content');
-    
-    const created = await createStarterConfig(TEST_DIR);
-    
-    expect(created).toBe(false);
-    
-    // Verify existing content unchanged
-    const content = readFileSync(join(TEST_DIR, 'loaf.yml'), 'utf8');
-    expect(content).toBe('existing content');
-  });
-
-  test('throws on write error', async () => {
-    // Make directory read-only (Unix-specific)
-    if (process.platform !== 'win32') {
-      await createStarterConfig(TEST_DIR); // Create file first
-      rmSync(join(TEST_DIR, 'loaf.yml'));
-      mkdirSync(join(TEST_DIR, 'loaf.yml')); // Create directory with same name
-      
-      await expect(createStarterConfig(TEST_DIR)).rejects.toThrow();
-    }
-  });
-});
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/config/test/unit/create.test.ts ===
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/orch/test/execute.test.ts ===
 

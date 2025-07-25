@@ -8,11 +8,13 @@ these are tools that the user will execute on their machine after your response 
 ```sh nesl
 #!nesl [@three-char-SHA-256: q8r]
 action = "tool_name"
+
 param1 = <<'EOT_q8r'
 value line 1
 
  value line 2
 EOT_q8r
+
 param2 = "value"
 #!end_q8r
 ```
@@ -38,10 +40,12 @@ equivalent json:
 #!nesl [@three-char-SHA-256: fw1]
 action = "file_write"
 path = "/home/user/script.py"
+
 content = <<'EOT_fw1'
 #!/usr/bin/env python3
 print("Hello")
 EOT_fw1
+
 #!end_fw1
 ```
 
@@ -50,12 +54,15 @@ EOT_fw1
 #!nesl [@three-char-SHA-256: fr2]
 action = "file_replace_text"
 path = "/etc/config.ini"
+
 old_text = <<'EOT_fr2'
 debug = false
 EOT_fr2
+
 new_text = <<'EOT_fr2'
 debug = true
 EOT_fr2
+
 #!end_fr2
 ```
 
@@ -64,12 +71,15 @@ EOT_fr2
 #!nesl [@three-char-SHA-256: fr2]
 action = "file_replace_text"
 path = "/etc/config.ini"
+
 old_text = <<'EOT_fr2'
 //this bit of code exists in the file several times
 EOT_fr2
+
 new_text = <<'EOT_fr2'
 //replacement text to replace in all locations
 EOT_fr2
+
 #!end_fr2
 ```
 
@@ -85,11 +95,13 @@ path = "/var/log/app.log"
 ```sh nesl
 #!nesl [@three-char-SHA-256: rm4]
 action = "files_read"
+
 paths = <<'EOT_rm4'
 /tmp/file1.txt
 /tmp/file2.txt
 /usr/local/bin/script.sh
 EOT_rm4
+
 #!end_rm4
 ```
 

@@ -116,17 +116,11 @@ done
 
 
 file_list=$(cat <<'EOF'
-./proj/comp/orch/src/index.ts
-./proj/comp/config/src/load.ts
-./proj/comp/config/src/create.ts
-./proj/comp/hooks/src/index.ts
 
-./proj/comp/orch/test/integration/hooks-integration.test.ts
-./proj/comp/listener/test/integration/listener-workflow-v2.test.ts
-./proj/comp/config/test/unit/load.test.ts
-./proj/comp/config/test/unit/create.test.ts
-./proj/comp/hooks/test/unit/parseYamlConfig.test.ts
-./proj/comp/hooks/test/unit/validateConfig.test.ts
+
+
+proj/comp/config/test/unit/validate.test.ts
+proj/comp/orch/test/execute.test.ts
 
 EOF
 )

@@ -1,221 +1,403 @@
 📋 Copied to clipboard
 
 === LOAF RESULTS ===
-typ ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/config/src/types.ts
-def ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/config/src/defaults.ts
-val ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/config/src/validate.ts
-orc ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-or2 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-or3 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+vt1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/config/test/unit/validate.test.ts
+vt2 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/config/test/unit/validate.test.ts
+ot1 ❌ file_create ERROR: Unknown action: file_create (line 121)
+ot2 ❌ file_create ERROR: Unknown action: file_create (line 267)
 === END ===
 
 📋 Copied to clipboard
 
 === LOAF RESULTS ===
-typ ❌ file_replace_text /home/user/proj/comp/config/src/types.ts - Read access denied for
-def ❌ file_replace_text /home/user/proj/comp/config/src/defaults.ts - Read access denied for
-val ❌ file_replace_text /home/user/proj/comp/config/src/validate.ts - Read access denied for
-orc ❌ file_replace_text /home/user/proj/comp/orch/src/index.ts - Read access denied for
-or2 ❌ file_replace_text /home/user/proj/comp/orch/src/index.ts - Read access denied for
-or3 ❌ file_replace_text /home/user/proj/comp/orch/src/index.ts - Read access denied for
+vt1 ❌ file_replace_text /home/user/proj/comp/config/test/unit/validate.test.ts - Read access denied for
+vt2 ❌ file_replace_text /home/user/proj/comp/config/test/unit/validate.test.ts - Read access denied for
+ot1 ❌ file_create ERROR: Unknown action: file_create (line 112)
+ot2 ❌ file_create ERROR: Unknown action: file_create (line 258)
 === END ===
 
+Looking at the test patterns, here are the test cases needed:
+
 ```sh nesl
-#!nesl [@three-char-SHA-256: typ]
+#!nesl [@three-char-SHA-256: vt1]
 action = "file_replace_text"
-path = "/Users/stuart/repos/loaf/proj/comp/config/src/types.ts"
-old_text = <<'EOT_typ'
-export interface LoafConfig {
-  version: number;
-  hooks?: HooksConfig;
-  vars?: Record<string, string>;
-  'fs-guard'?: FsGuardConfig;
-  'exec-guard'?: ExecGuardConfig; // future
-}
-EOT_typ
-new_text = <<'EOT_typ'
-export interface LoafConfig {
-  version: number;
-  hooks?: HooksConfig;
-  vars?: Record<string, string>;
-  'fs-guard'?: FsGuardConfig;
-  'exec-guard'?: ExecGuardConfig; // future
-  'allowed-tools': string[];
-}
-EOT_typ
-#!end_typ
+path = "/Users/stuart/repos/loaf/proj/comp/config/test/unit/validate.test.ts"
+old_text = <<'EOT_vt1'
+  test('accepts minimal config', () => {
+    const result = validateConfig({ version: 1 });
+    expect(result.valid).toBe(true);
+  });
+EOT_vt1
+new_text = <<'EOT_vt1'
+  test('rejects missing allowed-tools', () => {
+    const result = validateConfig({ version: 1 });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('Config missing required allowed-tools');
+  });
+
+  test('rejects non-array allowed-tools', () => {
+    const result = validateConfig({
+      version: 1,
+      'allowed-tools': 'not an array'
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('allowed-tools must be an array');
+  });
+
+  test('rejects non-string items in allowed-tools', () => {
+    const result = validateConfig({
+      version: 1,
+      'allowed-tools': ['file_read', 123, 'file_write']
+    });
+    expect(result.valid).toBe(false);
+    expect(result.error).toBe('allowed-tools must contain only strings');
+  });
+
+  test('accepts valid allowed-tools', () => {
+    const result = validateConfig({
+      version: 1,
+      'allowed-tools': ['file_read', 'file_write', 'exec']
+    });
+    expect(result.valid).toBe(true);
+  });
+
+  test('accepts minimal config', () => {
+    const result = validateConfig({ 
+      version: 1,
+      'allowed-tools': []
+    });
+    expect(result.valid).toBe(true);
+  });
+EOT_vt1
+#!end_vt1
 ```
 
 ```sh nesl
-#!nesl [@three-char-SHA-256: def]
+#!nesl [@three-char-SHA-256: vt2]
 action = "file_replace_text"
-path = "/Users/stuart/repos/loaf/proj/comp/config/src/defaults.ts"
-old_text = <<'EOT_def'
-export const DEFAULT_LOAF_YAML = `# Loaf configuration
-version: 1
+path = "/Users/stuart/repos/loaf/proj/comp/config/test/unit/validate.test.ts"
+old_text = <<'EOT_vt2'
+  test('accepts valid config', () => {
+    const config = {
+      version: 1,
+      hooks: {
+        before: [{ run: 'echo test' }],
+        after: [{ run: 'echo done' }]
+      },
+      vars: {
+        TEST: 'value'
+      },
+      'fs-guard': {
+        allowed: ['./**'],
+        denied: ['**/.git/**'],
+        followSymlinks: false
+      }
+    };
 
-# File system guard configuration
-EOT_def
-new_text = <<'EOT_def'
-export const DEFAULT_LOAF_YAML = `# Loaf configuration
-version: 1
+    const result = validateConfig(config);
+    expect(result.valid).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+EOT_vt2
+new_text = <<'EOT_vt2'
+  test('accepts valid config', () => {
+    const config = {
+      version: 1,
+      'allowed-tools': ['file_read', 'file_write', 'exec'],
+      hooks: {
+        before: [{ run: 'echo test' }],
+        after: [{ run: 'echo done' }]
+      },
+      vars: {
+        TEST: 'value'
+      },
+      'fs-guard': {
+        allowed: ['./**'],
+        denied: ['**/.git/**'],
+        followSymlinks: false
+      }
+    };
 
-# Allowed tools (required for security)
-allowed-tools:
-  - file_write
-  - file_read
-  - file_create
-  - file_delete
-  - file_move
-  - file_copy
-  - file_replace_text
-  - file_replace_all_text
-  - files_create
-  - files_read
-  - files_delete
-  - dir_create
-  - dir_delete
-  - dir_move
-  - ls
-  - grep
-  - glob
-  - exec
+    const result = validateConfig(config);
+    expect(result.valid).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+EOT_vt2
+#!end_vt2
+```
 
-# File system guard configuration
+```sh nesl
+#!nesl [@three-char-SHA-256: ot1]
+action = "file_create"
+path = "/Users/stuart/repos/loaf/proj/comp/orch/test-data/execute/allowed-tools.md"
+content = <<'EOT_ot1'
+# Allowed Tools Tests
+
+### file_write blocked by allowed-tools
+
+```nesl
+#!nesl [@three-char-SHA-256: abc]
+action = "file_write"
+path = "/tmp/blocked.txt"
+content = <<'EOT_abc'
+This should be blocked
+EOT_abc
+#!end_abc
+```
+
+```json
+{
+  "success": false,
+  "totalBlocks": 1,
+  "executedActions": 1,
+  "results": [
+    {
+      "seq": 1,
+      "blockId": "abc",
+      "action": "file_write",
+      "params": {
+        "path": "/tmp/blocked.txt",
+        "content": "This should be blocked"
+      },
+      "success": false,
+      "error": "Tool 'file_write' is not in allowed-tools list"
+    }
+  ],
+  "parseErrors": []
+}
+```
+
+### exec blocked when not in allowed-tools
+
+```nesl
+#!nesl [@three-char-SHA-256: def]
+action = "exec"
+language = "bash"
+script = <<'EOT_def'
+echo "Should not run"
 EOT_def
 #!end_def
 ```
 
-```sh nesl
-#!nesl [@three-char-SHA-256: val]
-action = "file_replace_text"
-path = "/Users/stuart/repos/loaf/proj/comp/config/src/validate.ts"
-old_text = <<'EOT_val'
-  // Validate fs-guard if present
-  if (config['fs-guard']) {
-EOT_val
-new_text = <<'EOT_val'
-  // Validate allowed-tools (required)
-  if (!config['allowed-tools']) {
-    return {
-      valid: false,
-      error: 'Config missing required allowed-tools'
-    };
-  }
-
-  if (!Array.isArray(config['allowed-tools'])) {
-    return {
-      valid: false,
-      error: 'allowed-tools must be an array'
-    };
-  }
-
-  for (const tool of config['allowed-tools']) {
-    if (typeof tool !== 'string') {
-      return {
-        valid: false,
-        error: 'allowed-tools must contain only strings'
-      };
+```json
+{
+  "success": false,
+  "totalBlocks": 1,
+  "executedActions": 1,
+  "results": [
+    {
+      "seq": 1,
+      "blockId": "def",
+      "action": "exec",
+      "params": {
+        "language": "bash",
+        "script": "echo \"Should not run\""
+      },
+      "success": false,
+      "error": "Tool 'exec' is not in allowed-tools list"
     }
-  }
+  ],
+  "parseErrors": []
+}
+```
 
-  // Validate fs-guard if present
-  if (config['fs-guard']) {
-EOT_val
-#!end_val
+### Multiple actions with some blocked
+
+```nesl
+#!nesl [@three-char-SHA-256: ghi]
+action = "file_read"
+path = "/tmp/test-read.txt"
+#!end_ghi
+
+#!nesl [@three-char-SHA-256: jkl]
+action = "file_write"
+path = "/tmp/test-write.txt"
+content = <<'EOT_jkl'
+test content
+EOT_jkl
+#!end_jkl
+
+#!nesl [@three-char-SHA-256: mno]
+action = "exec"
+language = "bash"
+script = <<'EOT_mno'
+ls /tmp
+EOT_mno
+#!end_mno
+```
+
+```json
+{
+  "success": false,
+  "totalBlocks": 3,
+  "executedActions": 3,
+  "results": [
+    {
+      "seq": 1,
+      "blockId": "ghi",
+      "action": "file_read",
+      "params": {
+        "path": "/tmp/test-read.txt"
+      },
+      "success": false,
+      "error": "No such file or directory"
+    },
+    {
+      "seq": 2,
+      "blockId": "jkl",
+      "action": "file_write",
+      "params": {
+        "path": "/tmp/test-write.txt",
+        "content": "test content"
+      },
+      "success": false,
+      "error": "Tool 'file_write' is not in allowed-tools list"
+    },
+    {
+      "seq": 3,
+      "blockId": "mno",
+      "action": "exec",
+      "params": {
+        "language": "bash",
+        "script": "ls /tmp"
+      },
+      "success": false,
+      "error": "Tool 'exec' is not in allowed-tools list"
+    }
+  ],
+  "parseErrors": []
+}
+```
+EOT_ot1
+#!end_ot1
 ```
 
 ```sh nesl
-#!nesl [@three-char-SHA-256: orc]
-action = "file_replace_text"
-path = "/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts"
-old_text = <<'EOT_orc'
-  private async executeAction(action: LoafAction, seq: number): Promise<ActionResult> {
-    const executor = this.executors.get(action.action);
+#!nesl [@three-char-SHA-256: ot2]
+action = "file_create"
+path = "/Users/stuart/repos/loaf/proj/comp/orch/test/allowed-tools.test.ts"
+content = <<'EOT_ot2'
+import { describe, it, expect, beforeEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { marked, Token } from 'marked';
+import { Loaf } from '../src/index.js';
+import { clearActionSchemaCache } from '../../nesl-action-parser/src/index.js';
+import { writeFileSync, mkdirSync, rmSync } from 'fs';
 
-    if (!executor) {
-      return {
-        seq,
-        blockId: action.metadata.blockId,
-        action: action.action,
-        params: action.parameters,
-        success: false,
-        error: `Unknown action: ${action.action}`
-      };
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+describe('allowed-tools enforcement', () => {
+  beforeEach(() => {
+    clearActionSchemaCache();
+  });
+
+  it('blocks tools not in allowed-tools list', async () => {
+    const testConfig = `version: 1
+allowed-tools:
+  - file_read`;
+
+    const configDir = '/tmp/test-loaf-config';
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(join(configDir, 'loaf.yml'), testConfig);
+
+    const loaf = await Loaf.create({ repoPath: configDir });
+
+    const input = `#!nesl [@three-char-SHA-256: xyz]
+action = "file_write"
+path = "/tmp/test.txt"
+content = <<'EOT_xyz'
+blocked content
+EOT_xyz
+#!end_xyz`;
+
+    const result = await loaf.execute(input);
+    
+    expect(result.success).toBe(false);
+    expect(result.results[0].error).toBe("Tool 'file_write' is not in allowed-tools list");
+
+    rmSync(configDir, { recursive: true, force: true });
+  });
+
+  it('allows tools in allowed-tools list', async () => {
+    const testConfig = `version: 1
+allowed-tools:
+  - file_write`;
+
+    const configDir = '/tmp/test-loaf-config2';
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(join(configDir, 'loaf.yml'), testConfig);
+
+    const loaf = await Loaf.create({ repoPath: configDir });
+
+    const input = `#!nesl [@three-char-SHA-256: xyz]
+action = "file_write"
+path = "/tmp/allowed-test.txt"
+content = <<'EOT_xyz'
+allowed content
+EOT_xyz
+#!end_xyz`;
+
+    const result = await loaf.execute(input);
+    
+    expect(result.success).toBe(true);
+    expect(result.results[0].success).toBe(true);
+
+    rmSync(configDir, { recursive: true, force: true });
+    rmSync('/tmp/allowed-test.txt', { force: true });
+  });
+
+  it('validates tool names against actual executors', async () => {
+    const testConfig = `version: 1
+allowed-tools:
+  - file_read
+  - invalid_tool_name`;
+
+    const configDir = '/tmp/test-loaf-config3';
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(join(configDir, 'loaf.yml'), testConfig);
+
+    await expect(Loaf.create({ repoPath: configDir })).rejects.toThrow(
+      /Invalid tool in allowed-tools: 'invalid_tool_name'/
+    );
+
+    rmSync(configDir, { recursive: true, force: true });
+  });
+
+  it('uses test data from allowed-tools.md', async () => {
+    const testPath = join(__dirname, '../test-data/execute/allowed-tools.md');
+    const mdContent = readFileSync(testPath, 'utf8');
+    
+    const tokens = marked.lexer(mdContent);
+    const codeBlocks = tokens.filter(t => t.type === 'code') as Array<Token & { type: 'code', text: string, lang?: string }>;
+    const testNames = tokens
+      .filter(t => t.type === 'heading' && 'depth' in t && t.depth === 3)
+      .map(t => (t as any).text as string);
+
+    const testConfig = `version: 1
+allowed-tools:
+  - file_read`;
+
+    const configDir = '/tmp/test-loaf-config4';
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(join(configDir, 'loaf.yml'), testConfig);
+
+    const loaf = await Loaf.create({ repoPath: configDir });
+
+    for (let i = 0; i < testNames.length; i++) {
+      const input = codeBlocks[i * 2].text;
+      const expected = JSON.parse(codeBlocks[i * 2 + 1].text);
+      const result = await loaf.execute(input);
+
+      const { debug, ...resultWithoutDebug } = result;
+      expect(resultWithoutDebug).toEqual(expected);
     }
-EOT_orc
-new_text = <<'EOT_orc'
-  private async executeAction(action: LoafAction, seq: number): Promise<ActionResult> {
-    if (!this.config['allowed-tools'].includes(action.action)) {
-      return {
-        seq,
-        blockId: action.metadata.blockId,
-        action: action.action,
-        params: action.parameters,
-        success: false,
-        error: `Tool '${action.action}' is not in allowed-tools list`
-      };
-    }
 
-    const executor = this.executors.get(action.action);
-
-    if (!executor) {
-      return {
-        seq,
-        blockId: action.metadata.blockId,
-        action: action.action,
-        params: action.parameters,
-        success: false,
-        error: `Unknown action: ${action.action}`
-      };
-    }
-EOT_orc
-#!end_orc
-```
-
-```sh nesl
-#!nesl [@three-char-SHA-256: or2]
-action = "file_replace_text"
-path = "/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts"
-old_text = <<'EOT_or2'
-    // Build routing table from YAML
-    const executors = new Map<string, (action: LoafAction) => Promise<FileOpResult>>();
-
-    for (const [actionName, actionDef] of Object.entries(design.tools)) {
-EOT_or2
-new_text = <<'EOT_or2'
-    // Build routing table from YAML
-    const executors = new Map<string, (action: LoafAction) => Promise<FileOpResult>>();
-    const validTools = new Set<string>();
-
-    for (const [actionName, actionDef] of Object.entries(design.tools)) {
-      validTools.add(actionName);
-EOT_or2
-#!end_or2
-```
-
-```sh nesl
-#!nesl [@three-char-SHA-256: or3]
-action = "file_replace_text"
-path = "/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts"
-old_text = <<'EOT_or3'
-    }
-
-    return executors;
-  }
-EOT_or3
-new_text = <<'EOT_or3'
-    }
-
-    // Validate allowed-tools against actual available tools
-    for (const tool of config['allowed-tools']) {
-      if (!validTools.has(tool)) {
-        throw new Error(`Invalid tool in allowed-tools: '${tool}'. Valid tools: ${Array.from(validTools).join(', ')}`);
-      }
-    }
-
-    return executors;
-  }
-EOT_or3
-#!end_or3
+    rmSync(configDir, { recursive: true, force: true });
+  });
+});
+EOT_ot2
+#!end_ot2
 ```
