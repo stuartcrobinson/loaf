@@ -6,10 +6,6 @@ import { ParseResult, LoafAction, ParseError, ValidationResult, TransformError, 
 import { validateNeslBlock } from './validateNeslBlock.js';
 import { transformToAction } from './transformToAction.js';
 import { parseNesl, type Block, type ParseResult as NeslParseResult } from 'nesl-js';
-import { load as loadYaml } from 'js-yaml';
-import { readFile } from 'fs/promises';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
 
 // Re-export types for consumers
 export type { ParseResult, LoafAction, ParseError, ValidationResult, TransformError };
@@ -19,7 +15,7 @@ let actionSchemaCache: Map<string, ActionDefinition> | null = null;
 
 /**
  * Clear the action schema cache - useful for testing
- * Forces reload of unified-design.yaml on next parse
+ * Forces reload of action definitions on next parse
  */
 export function clearActionSchemaCache(): void {
   actionSchemaCache = null;
@@ -107,7 +103,7 @@ export async function parseNeslResponse(neslText: string): Promise<ParseResult> 
         blockStartLine: block?.startLine || parseError.line,
         neslContent: parseError.context
           ? `#!nesl [@three-char-SHA-256: ${parseError.blockId}]\n${parseError.context}`.trimEnd()
-          : reconstructNeslBlock(block || { id: parseError.blockId, properties: {} })
+          : reconstructNeslBlock(block || { id: parseError.blockId || 'unknown', properties: {}, startLine: 0, endLine: 0 })
       });
     }
   }
@@ -213,7 +209,7 @@ export async function parseNeslResponse(neslText: string): Promise<ParseResult> 
 }
 
 /**
- * Load and cache action definitions from unified-design.yaml
+ * Load and cache action definitions
  */
 async function loadActionSchema(): Promise<Map<string, ActionDefinition>> {
 
@@ -221,37 +217,25 @@ async function loadActionSchema(): Promise<Map<string, ActionDefinition>> {
     return actionSchemaCache;
   }
 
-  // Get the directory of this module
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-
-  // Navigate to project root and find unified-design.yaml
-  const yamlPath = join(__dirname, '../../../../unified-design.yaml');
-
   try {
-    // Add timeout to file read operation
-    const yamlContent = await Promise.race([
-      readFile(yamlPath, 'utf8'),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('YAML read timeout')), 5000)
-      )
-    ]);
-    const design = loadYaml(yamlContent) as any;
-
+    // Import from TypeScript source
+    const { ActionDefinitions } = await import('../../../../unified-design.js');
+    
     actionSchemaCache = new Map();
-
-    // Extract tool definitions
-    if (design.tools) {
-      for (const [toolName, toolDef] of Object.entries(design.tools)) {
-        actionSchemaCache.set(toolName, toolDef as ActionDefinition);
-      }
+    
+    // Transform to parser's expected format
+    for (const [toolName, toolDef] of Object.entries(ActionDefinitions)) {
+      actionSchemaCache.set(toolName, {
+        type: toolDef.type,
+        description: toolDef.description,
+        parameters: toolDef.parameters || {},
+        returns: toolDef.returns
+      } as ActionDefinition);
     }
-
-
-
+    
     return actionSchemaCache;
   } catch (error) {
-    throw new Error(`Failed to load unified-design.yaml: ${error}`);
+    throw new Error(`Failed to load action definitions: ${error}`);
   }
 }
 

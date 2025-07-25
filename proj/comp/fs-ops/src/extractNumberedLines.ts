@@ -40,8 +40,8 @@ export function extractNumberedLines(
         throw new Error(`Invalid line specification '${lineSpec}'`);
       }
 
-      startLine = parseInt(parts[0], 10);
-      endLine = parseInt(parts[1], 10);
+      startLine = parseInt(parts[0]!, 10);
+      endLine = parseInt(parts[1]!, 10);
 
       if (isNaN(startLine) || isNaN(endLine)) {
         throw new Error(`Invalid line specification '${lineSpec}'`);

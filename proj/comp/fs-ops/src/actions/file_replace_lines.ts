@@ -105,7 +105,10 @@ export async function handle__file_replace_lines(guard: FsGuard, action: LoafAct
 
     // Add lines before the replacement range
     for (let i = 0; i < startLine - 1; i++) {
-      resultLines.push(fileLines[i]);
+      const line = fileLines[i];
+      if (line !== undefined) {
+        resultLines.push(line);
+      }
     }
 
     // Add the new content
@@ -113,7 +116,10 @@ export async function handle__file_replace_lines(guard: FsGuard, action: LoafAct
 
     // Add lines after the replacement range
     for (let i = endLine; i < totalLines; i++) {
-      resultLines.push(fileLines[i]);
+      const line = fileLines[i];
+      if (line !== undefined) {
+        resultLines.push(line);
+      }
     }
 
     // Join back with newlines

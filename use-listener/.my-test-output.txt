@@ -1,6 +1,228 @@
 === LOAF RESULTS ===
-k9m ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/test/unit/formatNodeError.test.ts
+fr1 ❌ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_read.ts - old_text not found in file
+fw1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_write.ts
+fw2 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_write.ts
+rfo ✅ files_read (4 files)
 === END ===
 
 === OUTPUTS ===
+
+[rfo] files_read:
+Reading 4 files:
+- /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_delete.ts
+- /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_move.ts
+- /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_read_numbered.ts
+- /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_replace_all_text.ts
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_delete.ts ===
+import type { LoafAction } from '../../../nesl-action-parser/src/index.js';
+import type { FsGuard } from '../../../fs-guard/src/index.js';
+import type { FileOpResult } from '../index.js';
+import { unlink } from 'fs/promises';
+import { formatNodeError } from '../utils.js';
+
+export async function handle__file_delete(guard: FsGuard, action: LoafAction): Promise<FileOpResult> {
+  const { path } = action.parameters;
+
+  try {
+    await unlink(path);
+
+    return {
+      success: true,
+      data: {
+        path
+      }
+    };
+
+  } catch (error: any) {
+    return {
+      success: false,
+      error: formatNodeError(error, path, 'unlink')
+    };
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_delete.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_move.ts ===
+import type { LoafAction } from '../../../nesl-action-parser/src/index.js';
+import type { FsGuard } from '../../../fs-guard/src/index.js';
+import type { FileOpResult } from '../index.js';
+import { rename, mkdir } from 'fs/promises';
+import { dirname } from 'path';
+import { formatNodeError, fileExists } from '../utils.js';
+
+export async function handle__file_move(guard: FsGuard, action: LoafAction): Promise<FileOpResult> {
+  const { old_path, new_path } = action.parameters;
+
+  try {
+    // Pre-flight check for better error messages
+    const sourceExists = await fileExists(old_path);
+
+    if (!sourceExists) {
+      return {
+        success: false,
+        error: `file_move: Source file not found '${old_path}' (ENOENT)`
+      };
+    }
+
+    // Check if destination exists (for overwrote flag)
+    const destExists = await fileExists(new_path);
+
+    // Create parent directories for destination
+    const parentDir = dirname(new_path);
+    await mkdir(parentDir, { recursive: true });
+
+    // Move the file
+    await rename(old_path, new_path);
+
+    const result: FileOpResult = {
+      success: true,
+      data: {
+        old_path,
+        new_path
+      }
+    };
+
+    if (destExists) {
+      result.data.overwrote = true;
+    }
+
+    return result;
+
+  } catch (error: any) {
+    return {
+      success: false,
+      error: formatNodeError(error, old_path, 'rename', new_path)
+    };
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_move.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_read_numbered.ts ===
+import type { LoafAction } from '../../../nesl-action-parser/src/index.js';
+import type { FsGuard } from '../../../fs-guard/src/index.js';
+import type { FileOpResult } from '../index.js';
+import { readFile } from 'fs/promises';
+import { formatNodeError } from '../utils.js';
+import { extractNumberedLines } from '../extractNumberedLines.js';
+
+export async function handle__file_read_numbered(guard: FsGuard, action: LoafAction): Promise<FileOpResult> {
+  const { path, lines, delimiter = ": " } = action.parameters;
+
+  try {
+    const content = await readFile(path, 'utf8');
+
+    // Extract and number the requested lines
+    const { result, outOfRange } = extractNumberedLines(content, lines, delimiter);
+
+    // If out of range, return error with partial content
+    if (outOfRange) {
+      return {
+        success: false,
+        error: `file_read_numbered: Requested lines ${outOfRange.requested} but file only has ${outOfRange.actual} lines`,
+        data: {
+          path,
+          content: result
+        }
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        path,
+        content: result
+      }
+    };
+
+  } catch (error: any) {
+    // Check if it's our custom validation error
+    if (error.message && error.message.startsWith('Invalid line')) {
+      return {
+        success: false,
+        error: `file_read_numbered: ${error.message}`
+      };
+    }
+
+    return {
+      success: false,
+      error: formatNodeError(error, path, 'open')
+    };
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_read_numbered.ts ===
+
+=== START FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_replace_all_text.ts ===
+import type { LoafAction } from '../../../nesl-action-parser/src/index.js';
+import type { FsGuard } from '../../../fs-guard/src/index.js';
+import type { FileOpResult } from '../index.js';
+import { readFile, writeFile } from 'fs/promises';
+import { formatNodeError } from '../utils.js';
+import { replaceText } from '../replaceText.js';
+
+export async function handle__file_replace_all_text(guard: FsGuard, action: LoafAction): Promise<FileOpResult> {
+  const { path, old_text, new_text, count } = action.parameters;
+
+  // Validate old_text is not empty
+  if (!old_text || old_text.length === 0) {
+    return {
+      success: false,
+      error: 'file_replace_all_text: old_text cannot be empty'
+    };
+  }
+
+  try {
+    // Read existing file content
+    const content = await readFile(path, 'utf8');
+
+    // If count specified, validate it matches actual occurrences
+    if (count !== undefined) {
+      // Count actual occurrences
+      let actualCount = 0;
+      let searchIndex = 0;
+      while (true) {
+        const index = content.indexOf(old_text, searchIndex);
+        if (index === -1) break;
+        actualCount++;
+        searchIndex = index + old_text.length;
+      }
+
+      if (actualCount !== count) {
+        return {
+          success: false,
+          error: `file_replace_all_text: expected ${count} occurrences but found ${actualCount}`
+        };
+      }
+    }
+
+    // Replace all occurrences
+    const { result, replacements } = replaceText(content, old_text, new_text);
+
+    // Write updated content back
+    await writeFile(path, result, 'utf8');
+
+    return {
+      success: true,
+      data: {
+        path,
+        replacements
+      }
+    };
+
+  } catch (error: any) {
+    // Special case for empty old_text validation error
+    if (error.message === 'old_text cannot be empty') {
+      return {
+        success: false,
+        error: 'file_replace_all_text: old_text cannot be empty'
+      };
+    }
+
+    return {
+      success: false,
+      error: formatNodeError(error, path, 'open')
+    };
+  }
+}
+=== END FILE: /Users/stuart/repos/loaf/proj/comp/fs-ops/src/actions/file_replace_all_text.ts ===
 === END ===

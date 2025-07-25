@@ -17,6 +17,7 @@ X review the allowed/exisitng tools/actions
     - drop dumb stuff like 'dir_create'
     X NO indicate in the unified yaml whether they're implemented yet or not.  so if not they should be totally ignored from everything. 
         dont do this.  totally pointeless
+- exec just isn't working.  need to hardcode that its no supported        
 - cmd line option for auto copy/paste stuff
 - paste file contents in output for failed file edit action
 - new feature - listen for LLM output copy?  

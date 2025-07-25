@@ -3,10 +3,18 @@ import type { FsGuard } from '../../../fs-guard/src/index.js';
 import type { FileOpResult } from '../index.js';
 import { writeFile, mkdir } from 'fs/promises';
 import { dirname } from 'path';
-import { formatNodeError, fileExists } from '../utils.js';
+import { formatNodeError } from '../utils.js';
 
 export async function handle__file_write(guard: FsGuard, action: LoafAction): Promise<FileOpResult> {
   const { path, content } = action.parameters;
+
+  const guardResult = await guard.check(action);
+  if (!guardResult.allowed) {
+    return {
+      success: false,
+      error: guardResult.reason || 'Access denied'
+    };
+  }
 
   try {
     // Create parent directories if needed
@@ -17,12 +25,7 @@ export async function handle__file_write(guard: FsGuard, action: LoafAction): Pr
     await writeFile(path, content, 'utf8');
     const bytesWritten = Buffer.byteLength(content, 'utf8');
 
-    // Temporary debug for test 004
-    if (path.includes('move-to-existing-file')) {
-      // console.log(`DEBUG: Wrote file ${path}`);
-      const exists = await fileExists(path);
-      // console.log(`DEBUG: File exists after write: ${exists}`);
-    }
+
 
     return {
       success: true,

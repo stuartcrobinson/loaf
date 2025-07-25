@@ -6,14 +6,12 @@ import type { HooksConfig, HookContext, HookResult } from '../../hooks/src/index
 import { HooksManager } from '../../hooks/src/index.js';
 import { FsGuard } from '../../fs-guard/src/index.js';
 import { ExecExecutor } from '../../exec/src/index.js';
-import { load as loadYaml } from 'js-yaml';
-import { readFile } from 'fs/promises';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+
+
 import { loadConfig } from '../../config/src/index.js';
 import type { LoafConfig } from '../../config/src/index.js';
 import { updateInstructions } from '../../instruct-gen/src/index.js';
-import { updateInstructions } from '../../instruct-gen/src/index.js';
+import { ActionDefinitions } from '../../../../unified-design.js';
 
 export interface ExecutionResult {
   success: boolean;
@@ -222,18 +220,11 @@ export class Loaf {
     const fsOps = new FsOpsExecutor(fsGuard);
     const exec = new ExecExecutor();
 
-    // Load unified-design.yaml for routing
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = dirname(__filename);
-    const yamlPath = join(__dirname, '../../../../unified-design.yaml');
-    const yamlContent = await readFile(yamlPath, 'utf8');
-    const design = loadYaml(yamlContent) as any;
-
-    // Build routing table from YAML
+    // Build routing table from TypeScript definitions
     const executors = new Map<string, (action: LoafAction) => Promise<FileOpResult>>();
     const validActions = new Set<string>();
 
-    for (const [actionName, actionDef] of Object.entries(design.tools)) {
+    for (const [actionName, actionDef] of Object.entries(ActionDefinitions)) {
       validActions.add(actionName);
       const executorName = (actionDef as any).executor || Loaf.inferExecutor(actionName, actionDef);
 
@@ -338,11 +329,11 @@ export class Loaf {
         ...(result.error && { error: result.error }),
         ...(result.data !== undefined && { data: result.data }),
         // Include exec-specific fields at top level
-        ...(action.action === 'exec' && {
+        ...(action.action === 'exec' && result.data && {
           data: {
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exit_code: result.exit_code
+            stdout: (result as any).stdout,
+            stderr: (result as any).stderr,
+            exit_code: (result as any).exit_code
           }
         })
       };

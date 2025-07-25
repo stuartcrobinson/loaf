@@ -151,9 +151,9 @@ function getErrorSummary(error?: string): string {
 
   // For other errors, take first part before details
   const match = error.match(/^[^:]+:\s*([^'(]+)/);
-  if (match) return match[1].trim();
+  if (match) return match[1]!.trim();
 
-  return error.split('\n')[0]; // First line only
+  return error?.split('\n')[0] || 'Unknown error'; // First line only
 }
 
 /**
@@ -315,10 +315,6 @@ export function formatFullOutput(orchResult: OrchestratorResult): string {
   return lines.join('\n');
 }
 
-/**
- * Check if output should be displayed for an action based on unified-design.yaml rules.
- * This is a simplified check - the real implementation would load from unified-design.yaml.
- */
 function shouldShowOutput(action: string, params?: any): boolean {
   // Actions with output_display: never
   const neverShowOutput = ['file_write', 'file_replace_text', 'file_replace_all_text', 'file_append', 'file_delete', 'file_move', 'dir_create', 'dir_delete'];

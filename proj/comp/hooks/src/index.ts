@@ -118,7 +118,7 @@ export class HooksManager {
       cwd: cmd.cwd || this.repoPath,
       timeout,
       encoding: 'utf8' as const,
-      shell: true  // Ensure shell interpretation for redirects
+      shell: true as any  // Ensure shell interpretation for redirects
     };
 
     try {

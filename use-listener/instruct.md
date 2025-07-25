@@ -5,6 +5,8 @@ you, the LLM, can write nesl for the user to execute on their computer once your
 Critical constraints:
 - Paths: always absolute
 - Whitespace: preserved exactly in heredocs
+- when needing output from an action, like from file_read, you must terminate your LLM response and wait for the user to respond with the output
+- `exec` is not supported.  to initiate bash commands, place them in a separate fenced code block and just ask the user to run them
 
 ## NESL examples
 
@@ -82,7 +84,7 @@ Replace all occurrences
 - `path`
 - `old_text`
 - `new_text`
-- `count` (optional)
+- `count` (optional) string. eg: `count = "2"`
 
 ### `file_replace_text_range`
 Replace text between markers

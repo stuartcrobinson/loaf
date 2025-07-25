@@ -41,7 +41,10 @@ export function interpolateCommand(
         throw new Error(`Variable not found: ${varName}`);
       }
       
-      runString = runString.replace(match, allVars[varName]);
+      const replacement = allVars[varName];
+      if (replacement !== undefined) {
+        runString = runString.replace(match, replacement);
+      }
     }
   }
   

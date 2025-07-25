@@ -10,8 +10,8 @@ export async function handle__files_read(guard: FsGuard, action: LoafAction): Pr
   // Parse the multi-line paths string
   const pathList = paths
     .split('\n')
-    .map(line => line.trim())
-    .filter(line => line.length > 0);  // Remove empty lines
+    .map((line: string) => line.trim())
+    .filter((line: string) => line.length > 0);  // Remove empty lines
 
   if (pathList.length === 0) {
     return {

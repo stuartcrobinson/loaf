@@ -7,7 +7,7 @@ export interface ParseResult {
     errorCount: number;
   };
   debug?: {
-    rawInput?: string;
+    rawInput?: any;
     rawParseResult?: any;
   };
 }
