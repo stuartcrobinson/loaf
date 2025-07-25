@@ -68,10 +68,10 @@ export class Loaf {
     if (options.enableHooks !== false) {
       if (options.hooks) {
         // Use provided hooks configuration
-        hooksManager = new HooksManager(options.hooks, {}, repoPath);
+        hooksManager = new HooksManager(options.hooks, undefined, repoPath);
       } else if (config.hooks) {
         // Use hooks from loaded config
-        hooksManager = new HooksManager(config.hooks, config.vars || {}, repoPath);
+        hooksManager = new HooksManager(config.hooks, config.vars, repoPath);
       }
     }
     

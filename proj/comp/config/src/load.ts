@@ -1,7 +1,7 @@
 import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { load as loadYaml } from 'js-yaml';
-import type { LoafConfig } from './types.js';
+import type { LoafConfig, FsGuardConfig } from './types.js';
 import { validateConfig } from './validate.js';
 
 export async function loadConfig(repoPath: string): Promise<LoafConfig> {
