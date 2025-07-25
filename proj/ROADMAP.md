@@ -10,6 +10,7 @@ FIVE things i want to finish before release
 - tools allowlist (to block cmd line stuff for file security)
 - secretly allow synonyms for tools (like file_create == file_write cos llm really wants to use file_create)
     - new feature maybe... synonyms.. (create_file write_file ???? idk if overkill)
+    - .  file_create and file_copy  -
 
 - LLM instructions generator (based on tools allowlist)
 

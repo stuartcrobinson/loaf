@@ -21,6 +21,9 @@ describe('loadConfig', () => {
 
   test('loads valid config', async () => {
     const configContent = `version: 1
+allowed-tools:
+  - file_read
+  - file_write
 hooks:
   before:
     - run: echo "test"

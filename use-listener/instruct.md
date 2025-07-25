@@ -1,13 +1,13 @@
-# NESL Tool API Reference
+# NESL Actions API Reference
 
-these are tools that the user will execute on their machine after your response is complete
+these are actions that the user will execute on their machine after your response is complete
 
 ## NESL Syntax example 
 
 
 ```sh nesl
 #!nesl [@three-char-SHA-256: q8r]
-action = "tool_name"
+action = "action_name"
 
 param1 = <<'EOT_q8r'
 value line 1
@@ -23,7 +23,7 @@ equivalent json:
 
 ```json
 {
- "action": "tool_name",
+ "action": "action_name",
  "param1": "value line 1\n\n value line 2",
  "param2": "value"
 }
@@ -33,7 +33,7 @@ equivalent json:
 - Paths: always absolute
 - Whitespace: preserved exactly in heredocs
 
-## Tools
+## Actions
 
 ### `file_write` - Create/overwrite file
 ```sh nesl
@@ -112,3 +112,5 @@ EOT_rm4
 - do not write comments in the code.  code should be self-commenting, self-documenting
 
 - when replacing content in a file, make the old_string as short as you can while still being unique.  its better to err on the side of being too short and having to redo it, vs always being too long and wasting time and tokens
+
+- do not attempt to run nesl syntax while responding

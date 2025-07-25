@@ -82,6 +82,7 @@ describe('validateConfig', () => {
   test('rejects non-array fs-guard.allowed', () => {
     const result = validateConfig({
       version: 1,
+      'allowed-tools': [],
       'fs-guard': { allowed: 'not an array' }
     });
     expect(result.valid).toBe(false);
@@ -91,6 +92,7 @@ describe('validateConfig', () => {
   test('rejects non-boolean fs-guard.followSymlinks', () => {
     const result = validateConfig({
       version: 1,
+      'allowed-tools': [],
       'fs-guard': { followSymlinks: 'yes' }
     });
     expect(result.valid).toBe(false);
@@ -140,6 +142,7 @@ describe('validateConfig', () => {
   test('accepts empty hooks', () => {
     const result = validateConfig({
       version: 1,
+      'allowed-tools': [],
       hooks: {}
     });
     expect(result.valid).toBe(true);
