@@ -16,6 +16,7 @@ so what next...
     - drop dumb stuff like 'dir_create'
     - indicate in the unified yaml whether they're implemented yet or not.  so if not they should be totally ignored from everything. 
 - cmd line option for auto copy/paste stuff
+- paste file contents in output for failed file edit action
 - new feature - listen for LLM output copy?  
     - yes!!!!  be watching the clipboard for when
         - contains nesl AND THEN
