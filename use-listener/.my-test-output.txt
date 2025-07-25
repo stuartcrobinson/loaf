@@ -1,6 +1,12 @@
 === LOAF RESULTS ===
-fix5 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-fix6 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/hooks/src/index.ts
+c34 ✅ file_write /Users/stuart/repos/loaf/proj/comp/config/test/unit/load.test.ts
+c35 ✅ file_write /Users/stuart/repos/loaf/proj/comp/config/test/unit/create.test.ts
+c36 ✅ file_write /Users/stuart/repos/loaf/proj/comp/config/test/unit/validate.test.ts
+c37 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/doc/ARCH.md
+c38 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/doc/API.md
+c39 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/doc/API.md
+c40 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/doc/API.md
+c41 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/doc/API.md
 === END ===
 
 === OUTPUTS ===

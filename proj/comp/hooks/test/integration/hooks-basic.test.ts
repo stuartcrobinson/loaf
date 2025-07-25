@@ -144,32 +144,7 @@ describe('HooksManager Integration', () => {
     expect(duration).toBeLessThan(1000); // Should timeout quickly
   });
 
-  test('loads config from YAML file', async () => {
-    const yamlPath = `${TEST_DIR}/loaf.yml`;
-    const yamlContent = `
-version: 1
-hooks:
-  before:
-    - run: echo 'from yaml' > ${TEST_DIR}/yaml.txt
-vars:
-  TEST: value
-`;
-    
-    // Write YAML file
-    const { writeFileSync } = await import('fs');
-    writeFileSync(yamlPath, yamlContent);
 
-    const hooks = new HooksManager();
-    const config = await hooks.loadAndSetConfig(yamlPath);
-    
-    expect(config.version).toBe(1);
-    expect(config.vars?.TEST).toBe('value');
-    
-    // Run hooks to verify they work
-    const result = await hooks.runBefore();
-    expect(result.success).toBe(true);
-    expect(readFileSync(`${TEST_DIR}/yaml.txt`, 'utf8').trim()).toBe('from yaml');
-  });
 
   test('custom cwd works', async () => {
     const subDir = `${TEST_DIR}/subdir`;

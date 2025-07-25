@@ -66,11 +66,11 @@ exports:
 - **Signature**: `async execute(llmOutput: string): Promise<ExecutionResult>`
 - **Purpose**: Parse and execute all NESL blocks in LLM output, commit results
 - **Process**: 
-  1. Run before hooks (if enabled)
+  1. Run before hooks (if enabled) - failure aborts execution
   2. Parse NESL blocks
   3. Convert to actions
   4. Execute all valid actions
-  5. Run after hooks with execution context (if enabled)
+  5. Run after hooks with execution context (if enabled) - failure affects overall success
   6. (v1.2: Git commit with summary)
 - **Throws**: Never - all errors captured in ExecutionResult
 - **Hook Context**: After hooks receive: `{ success: boolean, executedActions: number, totalBlocks: number }`
@@ -86,8 +86,8 @@ interface ExecutionResult {
   parseErrors: ParseError[]    // NESL parsing errors
   fatalError?: string         // System failure (v1.2: will include git errors)
   hookErrors?: {              // Hook execution errors
-    before?: string[]         // Before hook errors
-    after?: string[]          // After hook errors
+    before?: string[]         // Before hook errors (always fatal)
+    after?: string[]          // After hook errors (affects success)
   }
 }
 ```
@@ -118,7 +118,7 @@ interface ParseError {
 interface LoafOptions {
   repoPath?: string           // Default: process.cwd()
   gitCommit?: boolean         // v1.2 feature - Default: true
-  hooks?: HooksConfig         // Hook configuration (if not provided, loads from loaf.yml)
+  hooks?: HooksConfig         // Hook configuration (overrides loaf.yml)
   enableHooks?: boolean       // Enable hook execution - Default: true
 }
 ```
@@ -153,5 +153,5 @@ execute(llmOutput)
 - Parser errors: Skip block, record error
 - Conversion errors: Skip action, record error
 - Execution errors: Continue execution, record error
-- Hook errors (after): Record but don't affect success if actions succeeded
+- Hook errors (after): Record and affect overall success
 - Git errors: Fatal, abort with fatalError

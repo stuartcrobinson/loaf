@@ -93,10 +93,9 @@ content = "export const feature = () => 'implemented';"
     // // Check if .hook-trace exists before execution
     // console.log('.hook-trace exists before execution:', existsSync(join(REPO_DIR, '.hook-trace')));
     
-    const loaf = new Loaf({ 
+    const loaf = await Loaf.create({ 
       repoPath: REPO_DIR,
-      enableHooks: true,
-      hooks: undefined  // Explicitly undefined to trigger loaf.yml load
+      enableHooks: true
     });
     
     // console.log('\n=== EXECUTING NESL ===');

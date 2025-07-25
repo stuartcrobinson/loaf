@@ -1,11 +1,8 @@
 import { promisify } from 'util';
 import { exec } from 'child_process';
-import { readFile } from 'fs/promises';
 import { interpolateCommand } from './interpolateCommand.js';
 import { validateCommand } from './validateCommand.js';
 import { formatHookResult } from './formatHookResult.js';
-import { parseYamlConfig } from './parseYamlConfig.js';
-import { validateConfig } from './validateConfig.js';
 import type { CommandResult } from './types.js';
 
 // Public types
@@ -61,26 +58,7 @@ export class HooksManager {
     return this.runCommands(commands, context);
   }
 
-  async loadAndSetConfig(path: string): Promise<HooksConfig> {
-    try {
-      const content = await readFile(path, 'utf8');
-      const config = parseYamlConfig(content);
 
-      const validation = validateConfig(config);
-      if (!validation.valid) {
-        throw new Error(`Invalid config: ${validation.error}`);
-      }
-
-      this.config = config.hooks || {};
-      this.vars = config.vars || {};
-      return config;
-    } catch (error: any) {
-      if (error.code === 'ENOENT') {
-        throw new Error(`Config file not found: ${path}`);
-      }
-      throw error;
-    }
-  }
 
   private async runCommands(commands: Command[], context?: HookContext): Promise<HookResult> {
     const results: CommandResult[] = [];

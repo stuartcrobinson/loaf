@@ -7,12 +7,11 @@ import { HooksManager } from '../../hooks/src/index.js';
 import { FsGuard } from '../../fs-guard/src/index.js';
 import { ExecExecutor } from '../../exec/src/index.js';
 import { load as loadYaml } from 'js-yaml';
-import { readFile, access } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { createStarterConfig } from './createStarterConfig.js';
-import { loadConfig } from './loadConfig.js';
-import type { LoafConfig } from './types.js';
+import { loadConfig } from '../../config/src/index.js';
+import type { LoafConfig } from '../../config/src/index.js';
 
 export interface ExecutionResult {
   success: boolean;
@@ -25,7 +24,6 @@ export interface ExecutionResult {
     before?: string[];
     after?: string[];
   };
-  configCreated?: boolean;
   debug?: {
     parseDebug?: any;
   };
@@ -46,23 +44,38 @@ export interface LoafOptions {
   gitCommit?: boolean;
   hooks?: HooksConfig;
   enableHooks?: boolean;
-  createConfigIfMissing?: boolean;
 }
 
 export class Loaf {
-  private options: LoafOptions;
-  private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>> | null = null;
-  private hooksManager: HooksManager | null = null;
-  private config: LoafConfig | null = null;
+  private constructor(
+    private config: LoafConfig,
+    private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>>,
+    private hooksManager: HooksManager | undefined,
+    private repoPath: string
+  ) {}
 
-  constructor(options: LoafOptions = {}) {
-    this.options = {
-      repoPath: options.repoPath || process.cwd(),
-      gitCommit: options.gitCommit ?? true,
-      hooks: options.hooks,
-      enableHooks: options.enableHooks ?? true,
-      createConfigIfMissing: options.createConfigIfMissing ?? false
-    };
+  static async create(options: LoafOptions = {}): Promise<Loaf> {
+    const repoPath = options.repoPath || process.cwd();
+    
+    // Load configuration
+    const config = await loadConfig(repoPath);
+    
+    // Initialize executors
+    const executors = await Loaf.initializeExecutors(config, repoPath);
+    
+    // Initialize hooks if enabled
+    let hooksManager: HooksManager | undefined;
+    if (options.enableHooks !== false) {
+      if (options.hooks) {
+        // Use provided hooks configuration
+        hooksManager = new HooksManager(options.hooks, {}, repoPath);
+      } else if (config.hooks) {
+        // Use hooks from loaded config
+        hooksManager = new HooksManager(config.hooks, config.vars || {}, repoPath);
+      }
+    }
+    
+    return new Loaf(config, executors, hooksManager, repoPath);
   }
 
   /**
@@ -71,25 +84,8 @@ export class Loaf {
    */
   async execute(llmOutput: string): Promise<ExecutionResult> {
     const hookErrors: ExecutionResult['hookErrors'] = {};
-    let configCreated = false;
 
     try {
-      // Initialize hooks if enabled and not already initialized
-      if (this.options.enableHooks && !this.hooksManager) {
-        try {
-          const initResult = await this.initializeHooks();
-          configCreated = initResult.configCreated || false;
-        } catch (error) {
-          return {
-            success: false,
-            totalBlocks: 0,
-            executedActions: 0,
-            results: [],
-            parseErrors: [],
-            fatalError: `Failed to initialize hooks: ${error instanceof Error ? error.message : String(error)}`
-          };
-        }
-      }
 
       // Run before hooks
       if (this.hooksManager) {
@@ -125,22 +121,6 @@ export class Loaf {
       const parseResult = await parseNeslResponse(llmOutput);
 
       // Debug info captured in parseResult.debug
-
-      // Initialize executors if needed
-      if (!this.executors) {
-        try {
-          await this.initializeExecutors();
-        } catch (error) {
-          return {
-            success: false,
-            totalBlocks: parseResult.summary.totalBlocks,
-            executedActions: 0,
-            results: [],
-            parseErrors: parseResult.errors,
-            fatalError: `Failed to initialize executors: ${error instanceof Error ? error.message : String(error)}`
-          };
-        }
-      }
 
       // Execute each valid action sequentially
       const results: ActionResult[] = [];
@@ -188,11 +168,11 @@ export class Loaf {
 
           const afterResult = await this.hooksManager.runAfter(afterContext);
           if (!afterResult.success) {
-            // After hook failure is non-fatal but recorded
+            // After hook failure affects overall success
             hookErrors.after = afterResult.errors?.map(e => `${e.command}: ${e.error}`) || ['Unknown after hook error'];
           }
         } catch (error) {
-          // After hook unexpected errors are also non-fatal
+          // After hook unexpected errors also affect success
           hookErrors.after = [`After hooks threw unexpected error: ${error instanceof Error ? error.message : String(error)}`];
         }
       }
@@ -204,7 +184,6 @@ export class Loaf {
         results,
         parseErrors: parseResult.errors,
         ...(Object.keys(hookErrors).length > 0 && { hookErrors }),
-        ...(configCreated && { configCreated }),
         debug: {
           parseDebug: parseResult.debug
         }
@@ -223,59 +202,20 @@ export class Loaf {
     }
   }
 
-  /**
-   * Initialize hooks manager with configuration
-   */
-  private async initializeHooks(): Promise<{ configCreated: boolean }> {
-    let configCreated = false;
 
-    // Ensure config is loaded
-    if (!this.config) {
-      this.config = await loadConfig(this.options.repoPath!);
-    }
-
-    if (this.options.hooks) {
-      // Use provided configuration
-      this.hooksManager = new HooksManager(this.options.hooks, {}, this.options.repoPath);
-    } else if (this.config.hooks) {
-      // Use hooks from loaded config
-      this.hooksManager = new HooksManager(this.config.hooks, this.config.vars, this.options.repoPath);
-    } else if (this.options.createConfigIfMissing) {
-      // Create starter config if missing
-      const loafYmlPath = join(this.options.repoPath!, 'loaf.yml');
-      try {
-        await access(loafYmlPath);
-      } catch (error: any) {
-        if (error.code === 'ENOENT') {
-          configCreated = await createStarterConfig(this.options.repoPath!);
-          if (configCreated) {
-            // Reload config
-            this.config = await loadConfig(this.options.repoPath!);
-            if (this.config.hooks) {
-              this.hooksManager = new HooksManager(this.config.hooks, this.options.repoPath);
-            }
-          }
-        }
-      }
-    }
-
-    return { configCreated };
-  }
 
   /**
    * Initialize action executors with configuration
    */
-  private async initializeExecutors(): Promise<void> {
-    // Load configuration
-    this.config = await loadConfig(this.options.repoPath!);
+  private static async initializeExecutors(config: LoafConfig, repoPath: string): Promise<Map<string, (action: LoafAction) => Promise<FileOpResult>>> {
 
     // Create fs-guard
     const fsGuard = new FsGuard(
-      this.config['fs-guard'] || {
-        allowed: [`${this.options.repoPath}/**`, '/tmp/**'],
+      config['fs-guard'] || {
+        allowed: [`${repoPath}/**`, '/tmp/**'],
         denied: ['/**/.git/**', '/**/.ssh/**', '/etc/**', '/sys/**', '/proc/**']
       },
-      this.options.repoPath!
+      repoPath
     );
 
     // Create executors
@@ -290,17 +230,17 @@ export class Loaf {
     const design = loadYaml(yamlContent) as any;
 
     // Build routing table from YAML
-    this.executors = new Map();
+    const executors = new Map<string, (action: LoafAction) => Promise<FileOpResult>>();
 
     for (const [actionName, actionDef] of Object.entries(design.tools)) {
-      const executorName = (actionDef as any).executor || this.inferExecutor(actionName, actionDef);
+      const executorName = (actionDef as any).executor || Loaf.inferExecutor(actionName, actionDef);
 
       switch (executorName) {
         case 'fs-ops':
-          this.executors.set(actionName, (action) => fsOps.execute(action));
+          executors.set(actionName, (action) => fsOps.execute(action));
           break;
         case 'exec':
-          this.executors.set(actionName, (action) => exec.execute(action));
+          executors.set(actionName, (action) => exec.execute(action));
           break;
         // Skip unimplemented executors
         case 'context':
@@ -310,13 +250,15 @@ export class Loaf {
           console.warn(`Unknown executor: ${executorName} for action: ${actionName}`);
       }
     }
+
+    return executors;
   }
 
   /**
    * Infer executor from action name/type when not explicitly defined
    * Temporary fallback until all YAML entries have executor field
    */
-  private inferExecutor(actionName: string, actionDef: any): string | null {
+  private static inferExecutor(actionName: string, actionDef: any): string | null {
     // File/dir operations go to fs-ops
     if (actionName.startsWith('file_') || actionName.startsWith('files_') ||
       actionName.startsWith('dir_') || ['ls', 'grep', 'glob'].includes(actionName)) {
@@ -346,7 +288,7 @@ export class Loaf {
    * Never throws - all errors returned in ActionResult
    */
   private async executeAction(action: LoafAction, seq: number): Promise<ActionResult> {
-    const executor = this.executors?.get(action.action);
+    const executor = this.executors.get(action.action);
 
     if (!executor) {
       return {
@@ -362,7 +304,7 @@ export class Loaf {
     try {
       // Add default cwd for exec actions if not specified
       const enhancedAction = action.action === 'exec' && !action.parameters.cwd
-        ? { ...action, parameters: { ...action.parameters, cwd: this.options.repoPath } }
+        ? { ...action, parameters: { ...action.parameters, cwd: this.repoPath } }
         : action;
 
       const result = await executor(enhancedAction);

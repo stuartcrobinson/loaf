@@ -51,10 +51,10 @@ const testDirs = [
 describe('Loaf.execute()', () => {
   let loaf: Loaf;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Clear the action schema cache to pick up latest definitions
     clearActionSchemaCache();
-    loaf = new Loaf();
+    loaf = await Loaf.create();
     // Clean up files
     for (const path of testFiles) {
       try {

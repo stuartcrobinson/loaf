@@ -59,7 +59,7 @@ EOT_fr2
 #!end_fr2
 ```
 
-### `file_replace_all_text` - Replace the only one occurrence
+### `file_replace_all_text` - Replace every matching occurrence
 ```sh nesl
 #!nesl [@three-char-SHA-256: fr2]
 action = "file_replace_text"

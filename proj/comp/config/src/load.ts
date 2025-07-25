@@ -2,6 +2,7 @@ import { readFile } from 'fs/promises';
 import { join } from 'path';
 import { load as loadYaml } from 'js-yaml';
 import type { LoafConfig } from './types.js';
+import { validateConfig } from './validate.js';
 
 export async function loadConfig(repoPath: string): Promise<LoafConfig> {
   const configPath = join(repoPath, 'loaf.yml');
@@ -11,12 +12,9 @@ export async function loadConfig(repoPath: string): Promise<LoafConfig> {
     const config = loadYaml(content) as LoafConfig;
 
     // Validate config structure
-    if (!config || typeof config !== 'object') {
-      throw new Error('Invalid config: must be an object');
-    }
-
-    if (!config.version) {
-      throw new Error('Config missing version');
+    const validation = validateConfig(config);
+    if (!validation.valid) {
+      throw new Error(`Invalid config: ${validation.error}`);
     }
 
     return config;

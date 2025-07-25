@@ -34,7 +34,7 @@ path = "${TEST_PATH}/nesl-output.txt"
 content = "This should not be written"
 #!end_hfa`;
 
-   const loaf = new Loaf({ 
+   const loaf = await Loaf.create({ 
      repoPath: TEST_PATH,
      enableHooks: true
    });
