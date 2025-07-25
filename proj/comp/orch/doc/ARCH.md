@@ -69,7 +69,7 @@ interface NeslError {
 - **Loading**: Lazy-load HooksManager on first execute() if hooks enabled
 - **Config Source**: Options > loaf.yml > no hooks
 - **Before Hook Failure**: Fatal - prevents NESL execution
-- **After Hook Failure**: Non-fatal - recorded but doesn't affect overall success
+- **After Hook Failure**: fatal
 - **Context Passing**: Minimal context to after hooks (success, counts)
 - **Variable Interpolation**: Handled by hooks component, not orch
 
