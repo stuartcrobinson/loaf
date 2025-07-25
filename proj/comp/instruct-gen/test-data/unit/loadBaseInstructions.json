@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "name": "loads base instructions template",
+      "input": [],
+      "verify": {
+        "contains": [
+          "# NESL Actions API Reference",
+          "## Actions",
+          "## Other Section"
+        ],
+        "type": "string"
+      }
+    }
+  ]
+}

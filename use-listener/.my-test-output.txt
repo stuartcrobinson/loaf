@@ -1,5 +1,5 @@
 === LOAF RESULTS ===
-fx1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/instruct-gen/src/parser.ts
+tf1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/instruct-gen/test-data/unit/filterByAllowedTools.json
 === END ===
 
 === OUTPUTS ===

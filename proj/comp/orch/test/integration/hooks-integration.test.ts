@@ -46,10 +46,10 @@ describe('Hooks Integration', () => {
       // Execute
       const result = await loaf.execute(testCase.input);
 
-      // Debug output
-      console.log(`\n=== Test: ${testCase.name} ===`);
-      console.log('Config:', JSON.stringify(testCase.config, null, 2));
-      console.log('Result:', JSON.stringify(result, null, 2));
+      // // Debug output
+      // console.log(`\n=== Test: ${testCase.name} ===`);
+      // console.log('Config:', JSON.stringify(testCase.config, null, 2));
+      // console.log('Result:', JSON.stringify(result, null, 2));
 
       // Basic assertions
       expect(result.success).toBe(testCase.expected.success);
