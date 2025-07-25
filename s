@@ -117,10 +117,17 @@ done
 
 file_list=$(cat <<'EOF'
 
-
-
-proj/comp/config/test/unit/validate.test.ts
-proj/comp/orch/test/execute.test.ts
+/Users/stuart/repos/loaf/unified-design.yaml
+/Users/stuart/repos/loaf/proj/comp/listener/src/unified-design-loader.ts
+/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+/Users/stuart/repos/loaf/proj/comp/fs-guard/src/FsGuard.ts
+/Users/stuart/repos/loaf/proj/comp/instruct-gen/src/index.ts
+/Users/stuart/repos/loaf/proj/comp/instruct-gen/src/loader.ts
+/Users/stuart/repos/loaf/proj/comp/instruct-gen/src/parser.ts
+/Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
+/Users/stuart/repos/loaf/proj/comp/exec/src/ExecExecutor.ts
+/Users/stuart/repos/loaf/proj/comp/nesl-action-parser/src/types.ts
+/Users/stuart/repos/loaf/proj/comp/orch/src/types.ts
 
 EOF
 )

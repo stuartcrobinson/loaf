@@ -5,7 +5,7 @@ describe('validateConfig', () => {
   test('accepts valid config', () => {
     const config = {
       version: 1,
-      'allowed-tools': ['file_read', 'file_write', 'exec'],
+      'allowed-actions': ['file_read', 'file_write', 'exec'],
       hooks: {
         before: [{ run: 'echo test' }],
         after: [{ run: 'echo done' }]
@@ -82,7 +82,7 @@ describe('validateConfig', () => {
   test('rejects non-array fs-guard.allowed', () => {
     const result = validateConfig({
       version: 1,
-      'allowed-tools': [],
+      'allowed-actions': [],
       'fs-guard': { allowed: 'not an array' }
     });
     expect(result.valid).toBe(false);
@@ -92,49 +92,49 @@ describe('validateConfig', () => {
   test('rejects non-boolean fs-guard.followSymlinks', () => {
     const result = validateConfig({
       version: 1,
-      'allowed-tools': [],
+      'allowed-actions': [],
       'fs-guard': { followSymlinks: 'yes' }
     });
     expect(result.valid).toBe(false);
     expect(result.error).toBe('fs-guard.followSymlinks must be a boolean');
   });
 
-  test('rejects missing allowed-tools', () => {
+  test('rejects missing allowed-actions', () => {
     const result = validateConfig({ version: 1 });
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('Config missing required allowed-tools');
+    expect(result.error).toBe('Config missing required allowed-actions');
   });
 
-  test('rejects non-array allowed-tools', () => {
+  test('rejects non-array allowed-actions', () => {
     const result = validateConfig({
       version: 1,
-      'allowed-tools': 'not an array'
+      'allowed-actions': 'not an array'
     });
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('allowed-tools must be an array');
+    expect(result.error).toBe('allowed-actions must be an array');
   });
 
-  test('rejects non-string items in allowed-tools', () => {
+  test('rejects non-string items in allowed-actions', () => {
     const result = validateConfig({
       version: 1,
-      'allowed-tools': ['file_read', 123, 'file_write']
+      'allowed-actions': ['file_read', 123, 'file_write']
     });
     expect(result.valid).toBe(false);
-    expect(result.error).toBe('allowed-tools must contain only strings');
+    expect(result.error).toBe('allowed-actions must contain only strings');
   });
 
-  test('accepts valid allowed-tools', () => {
+  test('accepts valid allowed-actions', () => {
     const result = validateConfig({
       version: 1,
-      'allowed-tools': ['file_read', 'file_write', 'exec']
+      'allowed-actions': ['file_read', 'file_write', 'exec']
     });
     expect(result.valid).toBe(true);
   });
 
   test('accepts minimal config', () => {
-    const result = validateConfig({ 
+    const result = validateConfig({
       version: 1,
-      'allowed-tools': []
+      'allowed-actions': []
     });
     expect(result.valid).toBe(true);
   });
@@ -142,7 +142,7 @@ describe('validateConfig', () => {
   test('accepts empty hooks', () => {
     const result = validateConfig({
       version: 1,
-      'allowed-tools': [],
+      'allowed-actions': [],
       hooks: {}
     });
     expect(result.valid).toBe(true);

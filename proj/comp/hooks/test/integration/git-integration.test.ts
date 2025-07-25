@@ -15,17 +15,17 @@ describe('Git Hooks Integration', () => {
       rmSync(TEST_BASE, { recursive: true, force: true });
     }
     mkdirSync(TEST_BASE, { recursive: true });
-    
+
     // Initialize bare remote
     execSync(`git init --bare ${REMOTE_DIR}`, { stdio: 'pipe' });
-    
+
     // Initialize local repo
     mkdirSync(REPO_DIR);
     execSync('git init', { cwd: REPO_DIR, stdio: 'pipe' });
     execSync('git config user.email "test@example.com"', { cwd: REPO_DIR });
     execSync('git config user.name "Test User"', { cwd: REPO_DIR });
     execSync(`git remote add origin ${REMOTE_DIR}`, { cwd: REPO_DIR });
-    
+
     // Initial commit (can't push empty repo)
     writeFileSync(join(REPO_DIR, 'README.md'), '# Test Repo\n');
     execSync('git add README.md', { cwd: REPO_DIR });
@@ -43,7 +43,7 @@ describe('Git Hooks Integration', () => {
     // Setup: Create loaf.yml with git hooks
     // Use relative paths since hooks run with cwd=REPO_DIR
     const loafConfig = `version: 1
-allowed-tools:
+allowed-actions:
   - file_write
   - file_read
   - exec
@@ -64,12 +64,12 @@ vars:
   COMMIT_MSG: "AI-assisted changes via NESL"
 `;
     writeFileSync(join(REPO_DIR, 'loaf.yml'), loafConfig);
-    
+
     // Create uncommitted changes that should be stashed
     writeFileSync(join(REPO_DIR, 'uncommitted.txt'), 'This should be stashed');
     writeFileSync(join(REPO_DIR, 'staged.txt'), 'This is staged');
     execSync('git add staged.txt', { cwd: REPO_DIR });
-    
+
     // NESL input that creates new files
     const neslInput = `#!nesl [@three-char-SHA-256: gf1]
 action = "file_write"
@@ -87,27 +87,27 @@ content = "export const feature = () => 'implemented';"
     // console.log('\n=== TEST DIAGNOSTICS ===');
     // console.log('REPO_DIR:', REPO_DIR);
     // console.log('loaf.yml exists:', existsSync(join(REPO_DIR, 'loaf.yml')));
-    
+
     // // Show loaf.yml content
     // const loafYmlContent = readFileSync(join(REPO_DIR, 'loaf.yml'), 'utf8');
     // console.log('loaf.yml content:');
     // console.log(loafYmlContent);
     // console.log('--- end loaf.yml ---\n');
-    
+
     // // Check if .hook-trace exists before execution
     // console.log('.hook-trace exists before execution:', existsSync(join(REPO_DIR, '.hook-trace')));
-    
-    const loaf = await Loaf.create({ 
+
+    const loaf = await Loaf.create({
       repoPath: REPO_DIR,
       enableHooks: true
     });
-    
+
     // console.log('\n=== EXECUTING NESL ===');
     const result = await loaf.execute(neslInput);
-    
+
     // // Debug: log the full result to see what's happening
     // console.log('\nExecution result:', JSON.stringify(result, null, 2));
-    
+
     // // Check hook trace immediately after execution
     // console.log('\n=== POST-EXECUTION DIAGNOSTICS ===');
     // console.log('.hook-trace exists after execution:', existsSync(join(REPO_DIR, '.hook-trace')));
@@ -116,82 +116,82 @@ content = "export const feature = () => 'implemented';"
     //   console.log('.hook-trace raw content:', JSON.stringify(traceContent));
     //   console.log('.hook-trace display:\n' + traceContent);
     // }
-    
+
     // // Check git status
     // console.log('\nGit status:');
     // console.log(execSync('git status --porcelain', { cwd: REPO_DIR, encoding: 'utf8' }));
-    
+
     // // Check for hook errors in result
     // if (result.hookErrors) {
     //   console.log('\nHook errors found:', result.hookErrors);
     // }
-    
+
     // Verify execution succeeded
     expect(result.success).toBe(true);
     expect(result.executedActions).toBe(2);
     expect(result.hookErrors).toBeUndefined();
-    
+
     // Verify working directory is clean (all changes committed)
-    const status = execSync('git status --porcelain', { 
-      cwd: REPO_DIR, 
-      encoding: 'utf8' 
+    const status = execSync('git status --porcelain', {
+      cwd: REPO_DIR,
+      encoding: 'utf8'
     }).trim();
     expect(status).toBe('');
-    
+
     // Verify files were created and committed
     expect(existsSync(join(REPO_DIR, 'generated.txt'))).toBe(true);
     expect(existsSync(join(REPO_DIR, 'src/feature.js'))).toBe(true);
-    
+
     // Verify stash was created (should have our uncommitted files)
-    const stashList = execSync('git stash list', { 
-      cwd: REPO_DIR, 
-      encoding: 'utf8' 
+    const stashList = execSync('git stash list', {
+      cwd: REPO_DIR,
+      encoding: 'utf8'
     });
     expect(stashList).toContain('stash@{0}');
-    
+
     // Verify commit was made with correct message
-    const lastCommit = execSync('git log -1 --pretty=%B', { 
-      cwd: REPO_DIR, 
-      encoding: 'utf8' 
+    const lastCommit = execSync('git log -1 --pretty=%B', {
+      cwd: REPO_DIR,
+      encoding: 'utf8'
     }).trim();
     expect(lastCommit).toBe('AI-assisted changes via NESL');
-    
+
     // Verify push succeeded by checking remote
-    const remoteLogs = execSync('git log --oneline', { 
-      cwd: REMOTE_DIR, 
-      encoding: 'utf8' 
+    const remoteLogs = execSync('git log --oneline', {
+      cwd: REMOTE_DIR,
+      encoding: 'utf8'
     });
     expect(remoteLogs).toContain('AI-assisted changes via NESL');
-    
+
     // Poll-based verification that remote has the files
     // (Clone to verify push worked completely)
     const cloneDir = join(TEST_BASE, 'verify-clone');
     execSync(`git clone ${REMOTE_DIR} ${cloneDir}`, { stdio: 'pipe' });
-    
+
     let attempts = 0;
     const maxAttempts = 10;
     let filesExist = false;
-    
+
     while (attempts < maxAttempts && !filesExist) {
-      filesExist = existsSync(join(cloneDir, 'generated.txt')) && 
-                   existsSync(join(cloneDir, 'src/feature.js'));
+      filesExist = existsSync(join(cloneDir, 'generated.txt')) &&
+        existsSync(join(cloneDir, 'src/feature.js'));
       if (!filesExist) {
         await new Promise(resolve => setTimeout(resolve, 100));
         attempts++;
       }
     }
-    
+
     expect(filesExist).toBe(true);
-    
+
     // Verify file contents in clone
     const generatedContent = readFileSync(join(cloneDir, 'generated.txt'), 'utf8');
     expect(generatedContent).toBe('Generated by NESL');
-    
+
     // CRITICAL: Verify hooks actually executed
     const hookTrace = readFileSync(join(REPO_DIR, '.hook-trace'), 'utf8');
     expect(hookTrace).toContain('BEFORE_HOOK_RAN');
     expect(hookTrace).toContain('AFTER_HOOK_RAN');
-    
+
     // Verify the specific files that were committed (not just that a commit exists)
     const commitFiles = execSync('git show --name-only --pretty="" HEAD', {
       cwd: REPO_DIR,

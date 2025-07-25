@@ -2,7 +2,7 @@ export const DEFAULT_LOAF_YAML = `# Loaf configuration
 version: 1
 
 # Allowed tools (required for security)
-allowed-tools:
+allowed-actions:
   - file_write
   - file_read
   - file_delete

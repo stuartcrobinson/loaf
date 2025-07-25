@@ -100,7 +100,7 @@ tools:
 
 
   #tentative!  under consideration.  dont implement yet
-  # actually.... for "in parents" stuff lets just use our exisitng tools, but allow "parent" stuff to be added to the path, like ina  syntax we created earlier but forgot about
+  # actually.... for "in parents" stuff lets just use our exisitng actions, but allow "parent" stuff to be added to the path, like ina  syntax we created earlier but forgot about
   # like:
   # path/to/file.md@@## Section 2@@### part 3
   # path/to/code.rs@@MyModuleOrClass@@myFunction

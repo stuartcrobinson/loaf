@@ -21,7 +21,7 @@ describe('loadConfig', () => {
 
   test('loads valid config', async () => {
     const configContent = `version: 1
-allowed-tools:
+allowed-actions:
   - file_read
   - file_write
 hooks:
@@ -36,7 +36,7 @@ fs-guard:
     writeFileSync(join(TEST_DIR, 'loaf.yml'), configContent);
 
     const config = await loadConfig(TEST_DIR);
-    
+
     expect(config.version).toBe(1);
     expect(config.hooks?.before).toHaveLength(1);
     expect(config.vars?.TEST).toBe('value');
@@ -45,7 +45,7 @@ fs-guard:
 
   test('returns default config when file missing', async () => {
     const config = await loadConfig(TEST_DIR);
-    
+
     expect(config.version).toBe(1);
     expect(config['fs-guard']).toBeDefined();
     expect(config['fs-guard']?.allowed).toContain('./**');

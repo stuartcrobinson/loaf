@@ -54,20 +54,20 @@ export class Loaf {
     private executors: Map<string, (action: LoafAction) => Promise<FileOpResult>>,
     private hooksManager: HooksManager | undefined,
     private repoPath: string
-  ) {}
+  ) { }
 
   static async create(options: LoafOptions = {}): Promise<Loaf> {
     const repoPath = options.repoPath || process.cwd();
-    
+
     // Load configuration
     const config = await loadConfig(repoPath);
-    
+
     // Update instructions file if needed
-    await updateInstructions(repoPath, config['allowed-tools']);
+    await updateInstructions(repoPath, config['allowed-actions']);
 
     // Initialize executors
     const executors = await Loaf.initializeExecutors(config, repoPath);
-    
+
     // Initialize hooks if enabled
     let hooksManager: HooksManager | undefined;
     if (options.enableHooks !== false) {
@@ -79,7 +79,7 @@ export class Loaf {
         hooksManager = new HooksManager(config.hooks, config.vars, repoPath);
       }
     }
-    
+
     return new Loaf(config, executors, hooksManager, repoPath);
   }
 
@@ -231,10 +231,10 @@ export class Loaf {
 
     // Build routing table from YAML
     const executors = new Map<string, (action: LoafAction) => Promise<FileOpResult>>();
-    const validTools = new Set<string>();
+    const validActions = new Set<string>();
 
     for (const [actionName, actionDef] of Object.entries(design.tools)) {
-      validTools.add(actionName);
+      validActions.add(actionName);
       const executorName = (actionDef as any).executor || Loaf.inferExecutor(actionName, actionDef);
 
       switch (executorName) {
@@ -253,10 +253,10 @@ export class Loaf {
       }
     }
 
-    // Validate allowed-tools against actual available tools
-    for (const tool of config['allowed-tools']) {
-      if (!validTools.has(tool)) {
-        throw new Error(`Invalid tool in allowed-tools: '${tool}'. Valid tools: ${Array.from(validTools).join(', ')}`);
+    // Validate allowed-actions against actual available tools
+    for (const tool of config['allowed-actions']) {
+      if (!validActions.has(tool)) {
+        throw new Error(`Invalid action in allowed-actions: '${tool}'. Valid actions: ${Array.from(validActions).join(', ')}`);
       }
     }
 
@@ -297,14 +297,14 @@ export class Loaf {
    * Never throws - all errors returned in ActionResult
    */
   private async executeAction(action: LoafAction, seq: number): Promise<ActionResult> {
-    if (!this.config['allowed-tools'].includes(action.action)) {
+    if (!this.config['allowed-actions'].includes(action.action)) {
       return {
         seq,
         blockId: action.metadata.blockId,
         action: action.action,
         params: action.parameters,
         success: false,
-        error: `Tool '${action.action}' is not in allowed-tools list`
+        error: `Action '${action.action}' is not in allowed-actions list`
       };
     }
 

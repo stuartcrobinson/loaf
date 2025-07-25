@@ -70,26 +70,26 @@ export function validateConfig(config: any): ValidationResult {
     }
   }
 
-  // Validate allowed-tools (required)
-  if (!config['allowed-tools']) {
+  // Validate allowed-actions (required)
+  if (!config['allowed-actions']) {
     return {
       valid: false,
-      error: 'Config missing required allowed-tools'
+      error: 'Config missing required allowed-actions'
     };
   }
 
-  if (!Array.isArray(config['allowed-tools'])) {
+  if (!Array.isArray(config['allowed-actions'])) {
     return {
       valid: false,
-      error: 'allowed-tools must be an array'
+      error: 'allowed-actions must be an array'
     };
   }
 
-  for (const tool of config['allowed-tools']) {
+  for (const tool of config['allowed-actions']) {
     if (typeof tool !== 'string') {
       return {
         valid: false,
-        error: 'allowed-tools must contain only strings'
+        error: 'allowed-actions must contain only strings'
       };
     }
   }
