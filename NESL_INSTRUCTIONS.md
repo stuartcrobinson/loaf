@@ -11,10 +11,10 @@ Critical constraints:
 ### example 1
 
 ```sh nesl
-#!nesl [@three-char-SHA-256: abc]
+#!nesl [@three-char-SHA-256: v7r]
 action = "file_write"
 path = "/absolute/path/to/file.txt"
-content = <<'EOT_abc'
+content = <<'EOT_v7r'
 
  Multi-line content
  always in a heredoc,
@@ -26,8 +26,8 @@ always literal text verbatim
    always with preserved whitespace
 
    
-EOT_abc
-#!end_abc
+EOT_v7r
+#!end_v7r
 ```
 
 ```json
@@ -41,16 +41,16 @@ EOT_abc
 ### example 2
 
 ```sh nesl
-#!nesl [@three-char-SHA-256: xyz]
+#!nesl [@three-char-SHA-256: qk6]
 action = "file_replace_text"
 path = "/home/user/config.py"
-old_text = <<'EOT_xyz'
+old_text = <<'EOT_qk6'
   "version": "0.1",
-EOT_xyz
-new_text = <<'EOT_xyz'
+EOT_qk6
+new_text = <<'EOT_qk6'
   "version": "0.2",
-EOT_xyz
-#!end_xyz
+EOT_qk6
+#!end_qk6
 ```
 
 JSON equivalent:
@@ -99,7 +99,7 @@ Move/rename file
 
 ### `files_read`
 Read multiple files
-- `paths`
+- `paths` heredoc string, one path per line
 
 ### `dir_create`
 Create directory
