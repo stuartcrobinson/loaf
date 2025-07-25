@@ -4,7 +4,7 @@ import { load as loadYaml } from 'js-yaml';
 import type { LoafConfig, FsGuardConfig } from './types.js';
 import { validateConfig } from './validate.js';
 import { createStarterConfig } from './create.js';
-import { DEFAULT_CONFIG_YAML } from './defaults.js';
+import { DEFAULT_LOAF_YAML } from './defaults.js';
 
 export async function loadConfig(repoPath: string): Promise<LoafConfig> {
   const configPath = join(repoPath, 'loaf.yml');
@@ -19,6 +19,7 @@ export async function loadConfig(repoPath: string): Promise<LoafConfig> {
       throw new Error(`Invalid config: ${validation.error}`);
     }
 
+    // Keep patterns as-is, resolution happens in FsGuard
     return config;
   } catch (error: any) {
     if (error.code === 'ENOENT') {
@@ -26,14 +27,7 @@ export async function loadConfig(repoPath: string): Promise<LoafConfig> {
       await createStarterConfig(repoPath);
       
       // Return config by parsing the same YAML we just wrote
-      const config = loadYaml(DEFAULT_CONFIG_YAML) as LoafConfig;
-      
-      // Convert relative paths to absolute
-      if (config['fs-guard']?.allowed) {
-        config['fs-guard'].allowed = config['fs-guard'].allowed.map(path => 
-          path.startsWith('/') ? path : join(repoPath, path)
-        );
-      }
+      const config = loadYaml(DEFAULT_LOAF_YAML) as LoafConfig;
       
       return config;
     }

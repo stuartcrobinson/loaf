@@ -1,5 +1,5 @@
 === LOAF RESULTS ===
-p3c ❌ file_read /home/user/proj/comp/orch/test/integration/hooks-integration.test.ts - Read access denied for
+fix ❌ file_replace_text /Users/stuart/repos/loaf/proj/comp/config/test/unit/load.test.ts - old_text not found in file
 === END ===
 
 === OUTPUTS ===

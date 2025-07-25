@@ -3,6 +3,8 @@ import { parse as parseYaml } from 'js-yaml';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
+//TODO ! at some point, lets make a generic "loader" cos tehres other files i want to load.  like to use a default-loaf.yaml instead of storing it as a string in ts.  and... maybe tooling for generating the llm_instructions doc (per allowed tools) maybe... 
+
 interface ToolDefinition {
   output_display?: 'always' | 'never' | 'conditional';
   parameters?: Record<string, any>;

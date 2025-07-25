@@ -95,6 +95,8 @@ EOT_rm4
 
 ---
 
-to modify any files on the user's machine, respond with nesl syntax
+- to modify any files on the user's machine, respond with nesl syntax
 
-do not write comments in the code.  code should be self-commenting, self-documenting
+- do not write comments in the code.  code should be self-commenting, self-documenting
+
+- when replacing content in a file, make the old_string as short as you can while still being unique.  its better to err on the side of being too short and having to redo it, vs always being too long and wasting time and tokens

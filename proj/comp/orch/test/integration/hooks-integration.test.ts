@@ -118,7 +118,7 @@ describe('Hooks Integration', () => {
 
           case '005-loaf-yml-default-config': {
             const configPath = join(repoPath, 'loaf.yml');
-            expect(existsSync(configPath)).toBe(false); // No auto-creation
+            expect(existsSync(configPath)).toBe(true); // Auto-creation happens now
             const testPath = join(repoPath, 'test.txt');
             expect(existsSync(testPath)).toBe(true);
             break;

@@ -1,4 +1,4 @@
-export const DEFAULT_CONFIG_YAML = `# Loaf configuration
+export const DEFAULT_LOAF_YAML = `# Loaf configuration
 version: 1
 
 # File system guard configuration
@@ -23,7 +23,7 @@ hooks:
   before: []
   after: []
   
-  # Example hooks (uncomment to use):
+  # Example hooks
   # before:
   #   - run: git stash --include-untracked
   #     continueOnError: false
@@ -39,5 +39,4 @@ hooks:
 # Variables available in commands
 vars:
   COMMIT_MSG: "AI-assisted changes"
-  # Add more variables as needed
-`;
+  # Add more variables as needed`;

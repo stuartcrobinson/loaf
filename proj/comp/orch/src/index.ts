@@ -209,8 +209,9 @@ export class Loaf {
    */
   private static async initializeExecutors(config: LoafConfig, repoPath: string): Promise<Map<string, (action: LoafAction) => Promise<FileOpResult>>> {
 
-    // Create fs-guard - config['fs-guard'] is guaranteed to exist from loadConfig
-    const fsGuard = new FsGuard(config['fs-guard']!, repoPath);
+    // Create fs-guard with config or empty object
+    const fsGuardConfig = config['fs-guard'] || {};
+    const fsGuard = new FsGuard(fsGuardConfig, repoPath);
 
     // Create executors
     const fsOps = new FsOpsExecutor(fsGuard);
