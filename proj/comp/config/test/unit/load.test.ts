@@ -56,7 +56,7 @@ fs-guard:
 `;
     writeFileSync(join(TEST_DIR, 'loaf.yml'), invalidYaml);
 
-    await expect(loadConfig(TEST_DIR)).rejects.toThrow('Invalid YAML');
+    await expect(loadConfig(TEST_DIR)).rejects.toThrow('bad indentation');
   });
 
   test('throws on invalid config structure', async () => {

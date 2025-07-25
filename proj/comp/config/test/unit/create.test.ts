@@ -51,7 +51,8 @@ describe('createStarterConfig', () => {
       rmSync(join(TEST_DIR, 'loaf.yml'));
       mkdirSync(join(TEST_DIR, 'loaf.yml')); // Create directory with same name
       
-      await expect(createStarterConfig(TEST_DIR)).rejects.toThrow();
+      const created = await createStarterConfig(TEST_DIR);
+      expect(created).toBe(false);
     }
   });
 });

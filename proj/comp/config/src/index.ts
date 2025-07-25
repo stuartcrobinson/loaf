@@ -1,4 +1,4 @@
 export { loadConfig } from './load.js';
+export { createStarterConfig } from './create.js';
 export { validateConfig } from './validate.js';
-export type { LoafConfig, FsGuardConfig, ExecGuardConfig } from './types.js';
-export type { ValidationResult } from './validate.js';
+export type { LoafConfig, FsGuardConfig, HooksConfig } from './types.js';

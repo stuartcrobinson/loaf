@@ -617,7 +617,7 @@ describe('Hooks Integration', () => {
       '/tmp/t_hooks_integration_004',
       '/tmp/t_hooks_integration_005'
     ];
-    
+
     for (const dir of dirs) {
       if (existsSync(dir)) {
         rmSync(dir, { recursive: true, force: true });
@@ -633,11 +633,12 @@ describe('Hooks Integration', () => {
       }
 
       // Create Loaf instance with test config
-      const loaf = new Loaf(testCase.config);
+      const loaf = await Loaf.create(testCase.config);
+
 
       // Execute
       const result = await loaf.execute(testCase.input);
-      
+
       // Debug output
       console.log(`\n=== Test: ${testCase.name} ===`);
       console.log('Config:', JSON.stringify(testCase.config, null, 2));
@@ -665,11 +666,11 @@ describe('Hooks Integration', () => {
       // Test-specific verifications
       if (testCase.verify) {
         const repoPath = testCase.config?.repoPath;
-        
+
         if (!repoPath) {
           throw new Error(`Test ${testCase.name} has verify=true but no repoPath in config`);
         }
-        
+
         switch (testCase.name) {
           case '001-basic-hooks-execution': {
             const tracePath = join(repoPath, 'hook-trace.txt');
@@ -680,7 +681,7 @@ describe('Hooks Integration', () => {
             expect(trace).toContain('FILES_MODIFIED=');
             break;
           }
-          
+
           case '002-hooks-with-failures': {
             const resultPath = join(repoPath, 'result.txt');
             expect(existsSync(resultPath)).toBe(true);
@@ -689,7 +690,7 @@ describe('Hooks Integration', () => {
             expect(content).toContain('ERRORS=1');
             break;
           }
-          
+
           case '003-before-hook-failure-aborts': {
             const testPath = join(repoPath, 'test.txt');
             const afterPath = join(repoPath, 'after.txt');
@@ -697,7 +698,7 @@ describe('Hooks Integration', () => {
             expect(existsSync(afterPath)).toBe(false);
             break;
           }
-          
+
           case '004-context-variables-in-hooks': {
             const summaryPath = join(repoPath, 'summary.txt');
             expect(existsSync(summaryPath)).toBe(true);
@@ -707,7 +708,7 @@ describe('Hooks Integration', () => {
             expect(summary).toContain('Operations: file_write,file_read');
             break;
           }
-          
+
           case '005-loaf-yml-auto-creation': {
             const configPath = join(repoPath, 'loaf.yml');
             expect(existsSync(configPath)).toBe(true);
@@ -1052,64 +1053,4 @@ describe('createStarterConfig', () => {
   });
 });
 === END FILE: /Users/stuart/repos/loaf/proj/comp/config/test/unit/create.test.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/unit/parseYamlConfig.test.ts ===
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { parseYamlConfig } from '../../src/parseYamlConfig.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load test data
-const testDataPath = join(__dirname, '../../test-data/unit/parseYamlConfig.json');
-const testData = JSON.parse(readFileSync(testDataPath, 'utf8'));
-
-// Run tests
-describe('parseYamlConfig', () => {
-  testData.cases.forEach((testCase: any) => {
-    test(testCase.name, () => {
-      const [content] = testCase.input;
-      
-      if (testCase.throws) {
-        expect(() => parseYamlConfig(content)).toThrow();
-      } else {
-        const result = parseYamlConfig(content);
-        expect(result).toEqual(testCase.expected);
-      }
-    });
-  });
-});
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/unit/parseYamlConfig.test.ts ===
-
-=== START FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/unit/validateConfig.test.ts ===
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { validateConfig } from '../../src/validateConfig.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Load test data
-const testDataPath = join(__dirname, '../../test-data/unit/validateConfig.json');
-const testData = JSON.parse(readFileSync(testDataPath, 'utf8'));
-
-// Run tests
-describe('validateConfig', () => {
-  testData.cases.forEach((testCase: any) => {
-    test(testCase.name, () => {
-      const [config] = testCase.input;
-      
-      if (testCase.throws) {
-        expect(() => validateConfig(config)).toThrow();
-      } else {
-        const result = validateConfig(config);
-        expect(result).toEqual(testCase.expected);
-      }
-    });
-  });
-});
-=== END FILE: /Users/stuart/repos/loaf/proj/comp/hooks/test/unit/validateConfig.test.ts ===
 

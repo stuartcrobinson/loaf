@@ -206,15 +206,14 @@ Verify:
   Operations: file_write,file_read
   ```
 
-## 005-loaf-yml-auto-creation
+## 005-loaf-yml-default-config
 
-Tests that loaf.yml is created when missing and hooks are enabled.
+Tests that default config is used when loaf.yml is missing.
 
 ```yaml
 config:
   repoPath: /tmp/t_hooks_integration_005
   enableHooks: true
-  createConfigIfMissing: true  # New option to add
 ```
 
 ```sh nesl
@@ -248,5 +247,5 @@ content = "Trigger config creation"
 ```
 
 Verify:
-- loaf.yml exists with starter content
 - test.txt exists
+- execution succeeds with default config (no loaf.yml created)

@@ -1,10 +1,4 @@
 === LOAF RESULTS ===
-tcb ✅ file_write /Users/stuart/repos/loaf/tsconfig.base.json
-ld1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/config/src/load.ts
-hm1 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-hm2 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-idx ✅ file_write /Users/stuart/repos/loaf/proj/comp/config/src/index.ts
-mig ✅ file_write /Users/stuart/repos/loaf/MIGRATION.md
 === END ===
 
 === OUTPUTS ===

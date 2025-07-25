@@ -92,7 +92,7 @@ async function processFileChange(filePath: string, state: ListenerState): Promis
     }
 
     // Execute via orchestrator with full file content
-    const loaf = new Loaf({ gitCommit: false });
+    const loaf = await Loaf.create({ gitCommit: false });
     const orchResult = await loaf.execute(fullContent);
 
     // Debug logging

@@ -24,7 +24,7 @@ describe('Hooks Integration', () => {
       '/tmp/t_hooks_integration_004',
       '/tmp/t_hooks_integration_005'
     ];
-    
+
     for (const dir of dirs) {
       if (existsSync(dir)) {
         rmSync(dir, { recursive: true, force: true });
@@ -40,11 +40,12 @@ describe('Hooks Integration', () => {
       }
 
       // Create Loaf instance with test config
-      const loaf = new Loaf(testCase.config);
+      const loaf = await Loaf.create(testCase.config);
+
 
       // Execute
       const result = await loaf.execute(testCase.input);
-      
+
       // Debug output
       console.log(`\n=== Test: ${testCase.name} ===`);
       console.log('Config:', JSON.stringify(testCase.config, null, 2));
@@ -72,11 +73,11 @@ describe('Hooks Integration', () => {
       // Test-specific verifications
       if (testCase.verify) {
         const repoPath = testCase.config?.repoPath;
-        
+
         if (!repoPath) {
           throw new Error(`Test ${testCase.name} has verify=true but no repoPath in config`);
         }
-        
+
         switch (testCase.name) {
           case '001-basic-hooks-execution': {
             const tracePath = join(repoPath, 'hook-trace.txt');
@@ -87,7 +88,7 @@ describe('Hooks Integration', () => {
             expect(trace).toContain('FILES_MODIFIED=');
             break;
           }
-          
+
           case '002-hooks-with-failures': {
             const resultPath = join(repoPath, 'result.txt');
             expect(existsSync(resultPath)).toBe(true);
@@ -96,7 +97,7 @@ describe('Hooks Integration', () => {
             expect(content).toContain('ERRORS=1');
             break;
           }
-          
+
           case '003-before-hook-failure-aborts': {
             const testPath = join(repoPath, 'test.txt');
             const afterPath = join(repoPath, 'after.txt');
@@ -104,7 +105,7 @@ describe('Hooks Integration', () => {
             expect(existsSync(afterPath)).toBe(false);
             break;
           }
-          
+
           case '004-context-variables-in-hooks': {
             const summaryPath = join(repoPath, 'summary.txt');
             expect(existsSync(summaryPath)).toBe(true);
@@ -114,10 +115,10 @@ describe('Hooks Integration', () => {
             expect(summary).toContain('Operations: file_write,file_read');
             break;
           }
-          
-          case '005-loaf-yml-auto-creation': {
+
+          case '005-loaf-yml-default-config': {
             const configPath = join(repoPath, 'loaf.yml');
-            expect(existsSync(configPath)).toBe(true);
+            expect(existsSync(configPath)).toBe(false); // No auto-creation
             const testPath = join(repoPath, 'test.txt');
             expect(existsSync(testPath)).toBe(true);
             break;

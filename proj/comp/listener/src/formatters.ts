@@ -1,4 +1,4 @@
-import type { OrchestratorResult } from '../../orch/src/types.js';
+import type { ExecutionResult as OrchestratorResult } from '../../orch/src/index.js';
 
 // export function formatSummary(orchResult: OrchestratorResult, timestamp: Date): string {
 //   const lines = ['', '=== LOAF RESULTS ==='];
