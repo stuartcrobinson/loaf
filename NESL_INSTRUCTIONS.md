@@ -68,25 +68,26 @@ EOT_fr2
 #!end_fr2
 ```
 
-### `file_replace_all_text` 
+
+### `file_replace_all_text`
 Replace every matching occurrence
 ```sh nesl
-#!nesl [@three-char-SHA-256: fr2]
-action = "file_replace_text"
+#!nesl [@three-char-SHA-256: fra]
+action = "file_replace_all_text"
 path = "/etc/config.ini"
 
-old_text = <<'EOT_fr2'
+old_text = <<'EOT_fra'
 //this bit of code exists in the file several times
-EOT_fr2
+EOT_fra
 
-new_text = <<'EOT_fr2'
+new_text = <<'EOT_fra'
 //replacement text to replace in all locations
-EOT_fr2
+EOT_fra
 
-#!end_fr2
+#!end_fra
 ```
 
-### `file_read` 
+### `file_read`
 Read single file
 ```sh nesl
 #!nesl [@three-char-SHA-256: rd3]
@@ -95,7 +96,26 @@ path = "/var/log/app.log"
 #!end_rd3
 ```
 
-### `files_read` 
+### `file_delete`
+Delete file
+```sh nesl
+#!nesl [@three-char-SHA-256: fd1]
+action = "file_delete"
+path = "/tmp/old-file.txt"
+#!end_fd1
+```
+
+### `file_move`
+Move/rename file
+```sh nesl
+#!nesl [@three-char-SHA-256: fm1]
+action = "file_move"
+old_path = "/tmp/source.txt"
+new_path = "/tmp/destination.txt"
+#!end_fm1
+```
+
+### `files_read`
 Read multiple files
 ```sh nesl
 #!nesl [@three-char-SHA-256: rm4]
@@ -110,9 +130,70 @@ EOT_rm4
 #!end_rm4
 ```
 
+### `dir_create`
+Create directory
+```sh nesl
+#!nesl [@three-char-SHA-256: dc1]
+action = "dir_create"
+path = "/tmp/new-directory"
+#!end_dc1
+```
+
+### `dir_delete`
+Delete directory
+```sh nesl
+#!nesl [@three-char-SHA-256: dd1]
+action = "dir_delete"
+path = "/tmp/old-directory"
+#!end_dd1
+```
+
+### `ls`
+List directory contents
+```sh nesl
+#!nesl [@three-char-SHA-256: ls1]
+action = "ls"
+path = "/home/user/projects"
+#!end_ls1
+```
+
+### `grep`
+Search pattern in files
+```sh nesl
+#!nesl [@three-char-SHA-256: gr1]
+action = "grep"
+pattern = "TODO"
+path = "/home/user/project"
+include = "*.py"
+#!end_gr1
+```
+
+### `glob`
+Find files matching pattern
+```sh nesl
+#!nesl [@three-char-SHA-256: gl1]
+action = "glob"
+pattern = "**/*.test.js"
+base_path = "/home/user/project"
+#!end_gl1
+```
+
+### `exec`
+Execute code
+```sh nesl
+#!nesl [@three-char-SHA-256: ex1]
+action = "exec"
+lang = "python"
+code = <<'EOT_ex1'
+import sys
+print(f"Python {sys.version}")
+EOT_ex1
+
+cwd = "/home/user/project"
+#!end_ex1
+```
+
 ## Other Section
-
-
 
 - to modify any files on the user's machine, respond with nesl syntax
 

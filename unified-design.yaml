@@ -31,6 +31,7 @@ tools:
       content: {type: string, required: true}
     returns: {success: boolean, error?: string}
     
+    
   file_replace_text:
     type: write
     executor: fs-ops
@@ -43,6 +44,23 @@ tools:
       old_text: {type: string, required: true}
       new_text: {type: string, required: true}
     returns: {success: boolean, replacements_made?: integer, error?: string}
+    man: |
+      ### `file_replace_text` - Replace the only one occurrence
+      ```sh nesl
+      #!nesl [@three-char-SHA-256: fr2]
+      action = "file_replace_text"
+      path = "/etc/config.ini"
+
+      old_text = <<'EOT_fr2'
+      debug = false
+      EOT_fr2
+
+      new_text = <<'EOT_fr2'
+      debug = true
+      EOT_fr2
+
+      #!end_fr2
+      ```
     
   file_replace_text_range:
     type: write

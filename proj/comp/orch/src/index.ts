@@ -12,6 +12,8 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { loadConfig } from '../../config/src/index.js';
 import type { LoafConfig } from '../../config/src/index.js';
+import { updateInstructions } from '../../instruct-gen/src/index.js';
+import { updateInstructions } from '../../instruct-gen/src/index.js';
 
 export interface ExecutionResult {
   success: boolean;
@@ -60,6 +62,9 @@ export class Loaf {
     // Load configuration
     const config = await loadConfig(repoPath);
     
+    // Update instructions file if needed
+    await updateInstructions(repoPath, config['allowed-tools']);
+
     // Initialize executors
     const executors = await Loaf.initializeExecutors(config, repoPath);
     
