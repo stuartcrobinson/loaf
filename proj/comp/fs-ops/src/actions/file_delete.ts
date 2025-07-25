@@ -1,0 +1,26 @@
+import type { LoafAction } from '../../../nesl-action-parser/src/index.js';
+import type { FsGuard } from '../../../fs-guard/src/index.js';
+import type { FileOpResult } from '../index.js';
+import { unlink } from 'fs/promises';
+import { formatNodeError } from '../utils.js';
+
+export async function handle__file_delete(guard: FsGuard, action: LoafAction): Promise<FileOpResult> {
+  const { path } = action.parameters;
+
+  try {
+    await unlink(path);
+
+    return {
+      success: true,
+      data: {
+        path
+      }
+    };
+
+  } catch (error: any) {
+    return {
+      success: false,
+      error: formatNodeError(error, path, 'unlink')
+    };
+  }
+}
