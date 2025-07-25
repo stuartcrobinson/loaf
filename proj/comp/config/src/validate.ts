@@ -70,6 +70,30 @@ export function validateConfig(config: any): ValidationResult {
     }
   }
 
+  // Validate allowed-tools (required)
+  if (!config['allowed-tools']) {
+    return {
+      valid: false,
+      error: 'Config missing required allowed-tools'
+    };
+  }
+
+  if (!Array.isArray(config['allowed-tools'])) {
+    return {
+      valid: false,
+      error: 'allowed-tools must be an array'
+    };
+  }
+
+  for (const tool of config['allowed-tools']) {
+    if (typeof tool !== 'string') {
+      return {
+        valid: false,
+        error: 'allowed-tools must contain only strings'
+      };
+    }
+  }
+
   // Validate fs-guard if present
   if (config['fs-guard']) {
     const fsGuard = config['fs-guard'];

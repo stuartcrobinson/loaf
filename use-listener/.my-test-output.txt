@@ -1,5 +1,10 @@
 === LOAF RESULTS ===
-fix ❌ file_replace_text /Users/stuart/repos/loaf/proj/comp/config/test/unit/load.test.ts - old_text not found in file
+typ ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/config/src/types.ts
+def ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/config/src/defaults.ts
+val ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/config/src/validate.ts
+orc ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+or2 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
+or3 ✅ file_replace_text /Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
 === END ===
 
 === OUTPUTS ===

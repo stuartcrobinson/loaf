@@ -226,8 +226,10 @@ export class Loaf {
 
     // Build routing table from YAML
     const executors = new Map<string, (action: LoafAction) => Promise<FileOpResult>>();
+    const validTools = new Set<string>();
 
     for (const [actionName, actionDef] of Object.entries(design.tools)) {
+      validTools.add(actionName);
       const executorName = (actionDef as any).executor || Loaf.inferExecutor(actionName, actionDef);
 
       switch (executorName) {
@@ -243,6 +245,13 @@ export class Loaf {
           break;
         default:
           console.warn(`Unknown executor: ${executorName} for action: ${actionName}`);
+      }
+    }
+
+    // Validate allowed-tools against actual available tools
+    for (const tool of config['allowed-tools']) {
+      if (!validTools.has(tool)) {
+        throw new Error(`Invalid tool in allowed-tools: '${tool}'. Valid tools: ${Array.from(validTools).join(', ')}`);
       }
     }
 
@@ -283,6 +292,17 @@ export class Loaf {
    * Never throws - all errors returned in ActionResult
    */
   private async executeAction(action: LoafAction, seq: number): Promise<ActionResult> {
+    if (!this.config['allowed-tools'].includes(action.action)) {
+      return {
+        seq,
+        blockId: action.metadata.blockId,
+        action: action.action,
+        params: action.parameters,
+        success: false,
+        error: `Tool '${action.action}' is not in allowed-tools list`
+      };
+    }
+
     const executor = this.executors.get(action.action);
 
     if (!executor) {

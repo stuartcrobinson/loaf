@@ -1,6 +1,27 @@
 export const DEFAULT_LOAF_YAML = `# Loaf configuration
 version: 1
 
+# Allowed tools (required for security)
+allowed-tools:
+  - file_write
+  - file_read
+  - file_create
+  - file_delete
+  - file_move
+  - file_copy
+  - file_replace_text
+  - file_replace_all_text
+  - files_create
+  - files_read
+  - files_delete
+  - dir_create
+  - dir_delete
+  - dir_move
+  - ls
+  - grep
+  - glob
+  - exec
+
 # File system guard configuration
 fs-guard:
   # Allowed paths (supports glob patterns)

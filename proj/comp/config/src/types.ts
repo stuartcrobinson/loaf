@@ -6,6 +6,7 @@ export interface LoafConfig {
   vars?: Record<string, string>;
   'fs-guard'?: FsGuardConfig;
   'exec-guard'?: ExecGuardConfig; // future
+  'allowed-tools': string[];
 }
 
 export interface FsGuardConfig {
