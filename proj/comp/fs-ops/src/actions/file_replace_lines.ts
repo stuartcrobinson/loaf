@@ -1,10 +1,9 @@
 import type { LoafAction } from '../../../nesl-action-parser/src/index.js';
-import type { FsGuard } from '../../../fs-guard/src/index.js';
 import type { FileOpResult } from '../index.js';
 import { readFile, writeFile } from 'fs/promises';
 import { formatNodeError } from '../utils.js';
 
-export async function handle__file_replace_lines(guard: FsGuard, action: LoafAction): Promise<FileOpResult> {
+export async function handle__file_replace_lines(action: LoafAction): Promise<FileOpResult> {
   const { path, lines, new_content } = action.parameters;
 
   try {

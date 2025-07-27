@@ -1,11 +1,10 @@
 import type { LoafAction } from '../../../nesl-action-parser/src/index.js';
-import type { FsGuard } from '../../../fs-guard/src/index.js';
 import type { FileOpResult } from '../index.js';
 import { rename, mkdir } from 'fs/promises';
 import { dirname } from 'path';
 import { formatNodeError, fileExists } from '../utils.js';
 
-export async function handle__file_move(guard: FsGuard, action: LoafAction): Promise<FileOpResult> {
+export async function handle__file_move(action: LoafAction): Promise<FileOpResult> {
   const { old_path, new_path } = action.parameters;
 
   try {

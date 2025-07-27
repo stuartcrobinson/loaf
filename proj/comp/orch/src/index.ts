@@ -1,8 +1,8 @@
-import type { LoafAction, ParseResult, ParseError } from '../../nesl-action-parser/src/index.js';
+import type { LoafAction, ParseError } from '../../nesl-action-parser/src/index.js';
 import { parseNeslResponse } from '../../nesl-action-parser/src/index.js';
 import type { FileOpResult } from '../../fs-ops/src/index.js';
 import { FsOpsExecutor } from '../../fs-ops/src/index.js';
-import type { HooksConfig, HookContext, HookResult } from '../../hooks/src/index.js';
+import type { HooksConfig, HookContext } from '../../hooks/src/index.js';
 import { HooksManager } from '../../hooks/src/index.js';
 import { FsGuard } from '../../fs-guard/src/index.js';
 import { ExecExecutor } from '../../exec/src/index.js';
@@ -258,7 +258,7 @@ export class Loaf {
    * Infer executor from action name/type when not explicitly defined
    * Temporary fallback until all YAML entries have executor field
    */
-  private static inferExecutor(actionName: string, actionDef: any): string | null {
+  private static inferExecutor(actionName: string, _actionDef: any): string | null {
     // File/dir operations go to fs-ops
     if (actionName.startsWith('file_') || actionName.startsWith('files_') ||
       actionName.startsWith('dir_') || ['ls', 'grep', 'glob'].includes(actionName)) {

@@ -29,7 +29,7 @@ export function getPlatformExamples(): {
   gitPush: string;
   gitStash: string;
 } {
-  const { isWindows } = detectShell();
+  const { } = detectShell();
   
   // Git commands are the same across platforms when using Git Bash or PowerShell
   // These work on all platforms with Git installed

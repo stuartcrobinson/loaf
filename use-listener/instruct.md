@@ -93,11 +93,6 @@ Replace text between markers
 - `old_text_end`
 - `new_text`
 
-### `file_replace_lines`
-Replace line range
-- `path`
-- `lines`
-- `new_content`
 
 ### `file_append`
 Append to file
@@ -107,11 +102,6 @@ Append to file
 ### `file_read`
 Read file
 - `path`
-
-### `file_read_numbered`
-Read with line numbers
-- `path`
-- `lines` (optional)
 
 ### `file_delete`
 Delete file
@@ -125,6 +115,10 @@ Move/rename file
 ### `files_read`
 Read multiple files
 - `paths` heredoc string, one path per line
+
+## bash
+
+for any bash commands you would like to execute, just share them directly with the user in fenced off code block in your response
 
 
 ## Coding Guides

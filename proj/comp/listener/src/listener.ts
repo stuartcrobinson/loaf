@@ -47,8 +47,8 @@ function generateId(): string {
 }
 
 // Format clipboard status line
-function formatClipboardStatus(success: boolean, timestamp: Date): string {
-  const time = timestamp.toLocaleTimeString();
+function formatClipboardStatus(success: boolean): string {
+
   return success ?
     `📋 Copied to clipboard` :
     `❌ Clipboard copy failed`;
@@ -122,8 +122,7 @@ async function processFileChange(filePath: string, state: ListenerState): Promis
     }
 
     // Format outputs
-    const timestamp = new Date();
-    const summary = formatSummary(orchResult, timestamp);
+    const summary = formatSummary(orchResult);
     const fullOutput = await formatFullOutput(orchResult);
 
     // Copy to clipboard
@@ -136,7 +135,7 @@ async function processFileChange(filePath: string, state: ListenerState): Promis
     }
 
     // Format clipboard status
-    const clipboardStatus = formatClipboardStatus(clipboardSuccess, timestamp);
+    const clipboardStatus = formatClipboardStatus(clipboardSuccess);
 
     // Write output file (without clipboard status)
     await writeFile(state.outputPath, fullOutput);

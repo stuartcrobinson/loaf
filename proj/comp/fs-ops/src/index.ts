@@ -67,15 +67,15 @@ export class FsOpsExecutor {
 
   constructor(private guard: FsGuard) {
     this.handlers = new Map([
-      ['file_write', (action) => handle__file_write(this.guard, action)],
-      ['file_read', (action) => handle__file_read(this.guard, action)],
-      ['file_read_numbered', (action) => handle__file_read_numbered(this.guard, action)],
-      ['file_replace_text', (action) => handle__file_replace_text(this.guard, action)],
-      ['file_replace_all_text', (action) => handle__file_replace_all_text(this.guard, action)],
-      ['file_replace_lines', (action) => handle__file_replace_lines(this.guard, action)],
-      ['file_delete', (action) => handle__file_delete(this.guard, action)],
-      ['file_move', (action) => handle__file_move(this.guard, action)],
-      ['files_read', (action) => handle__files_read(this.guard, action)]
+      ['file_write', handle__file_write],
+      ['file_read', handle__file_read],
+      ['file_read_numbered', handle__file_read_numbered],
+      ['file_replace_text', handle__file_replace_text],
+      ['file_replace_all_text', handle__file_replace_all_text],
+      ['file_replace_lines', handle__file_replace_lines],
+      ['file_delete', handle__file_delete],
+      ['file_move', handle__file_move],
+      ['files_read', handle__files_read]
     ]);
   }
 
@@ -124,6 +124,6 @@ export class FsOpsExecutor {
  * Legacy function export for backward compatibility
  * @deprecated Use FsOpsExecutor class instead
  */
-export async function executeFileOperation(action: LoafAction): Promise<FileOpResult> {
+export async function executeFileOperation(_action: LoafAction): Promise<FileOpResult> {
   throw new Error('Direct function call deprecated. Use FsOpsExecutor class.');
 }

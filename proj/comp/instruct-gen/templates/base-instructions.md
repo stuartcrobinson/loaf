@@ -156,6 +156,11 @@ Execute code
 - `cwd` (optional)
 - `return_output` (optional)
 
+
+## bash
+
+for any bash commands you would like to execute, just share them directly with the user in fenced off code block in your response
+
 ## Coding Guides
 
 when writing computer scripts or code:

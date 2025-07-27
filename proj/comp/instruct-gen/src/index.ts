@@ -2,7 +2,7 @@ import { loadBaseInstructions } from './loader.js';
 import { filterByAllowedTools } from './parser.js';
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
-import { ActionDefinitions } from '../../../../unified-design.js';
+
 
 export async function updateInstructions(
   repoPath: string,

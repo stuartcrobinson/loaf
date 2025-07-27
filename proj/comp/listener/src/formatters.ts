@@ -52,7 +52,7 @@ import type { ExecutionResult as OrchestratorResult } from '../../orch/src/index
 // }
 
 
-export function formatSummary(orchResult: OrchestratorResult, timestamp: Date): string {
+export function formatSummary(orchResult: OrchestratorResult): string {
   const lines = ['', '=== LOAF RESULTS ==='];
 
   // DEBUG: Log raw orchestrator result for parse errors

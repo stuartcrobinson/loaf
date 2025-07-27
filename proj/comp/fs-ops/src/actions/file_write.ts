@@ -1,20 +1,12 @@
 import type { LoafAction } from '../../../nesl-action-parser/src/index.js';
-import type { FsGuard } from '../../../fs-guard/src/index.js';
+
 import type { FileOpResult } from '../index.js';
 import { writeFile, mkdir } from 'fs/promises';
 import { dirname } from 'path';
 import { formatNodeError } from '../utils.js';
 
-export async function handle__file_write(guard: FsGuard, action: LoafAction): Promise<FileOpResult> {
+export async function handle__file_write(action: LoafAction): Promise<FileOpResult> {
   const { path, content } = action.parameters;
-
-  const guardResult = await guard.check(action);
-  if (!guardResult.allowed) {
-    return {
-      success: false,
-      error: guardResult.reason || 'Access denied'
-    };
-  }
 
   try {
     // Create parent directories if needed

@@ -1,4 +1,4 @@
-import type { LoafConfig } from './types.js';
+// LoafConfig type is defined in types.js but not used here since we validate untyped input
 
 export interface ValidationResult {
   valid: boolean;

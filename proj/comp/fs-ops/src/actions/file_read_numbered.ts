@@ -1,11 +1,10 @@
 import type { LoafAction } from '../../../nesl-action-parser/src/index.js';
-import type { FsGuard } from '../../../fs-guard/src/index.js';
 import type { FileOpResult } from '../index.js';
 import { readFile } from 'fs/promises';
 import { formatNodeError } from '../utils.js';
 import { extractNumberedLines } from '../extractNumberedLines.js';
 
-export async function handle__file_read_numbered(guard: FsGuard, action: LoafAction): Promise<FileOpResult> {
+export async function handle__file_read_numbered(action: LoafAction): Promise<FileOpResult> {
   const { path, lines, delimiter = ": " } = action.parameters;
 
   try {

@@ -13,8 +13,9 @@ so what next...
 
 X review the allowed/exisitng tools/actions
     X clean up fs-ops action handlers
-    - rename them to actions?
+    x rename them to actions? -- mostly done? good enough?
     - drop dumb stuff like 'dir_create'
+        - lets thoroughly clean up the unified-design thing.  maybe rip out all the future stuff.  that should go in ... somethign else.
     X NO indicate in the unified yaml whether they're implemented yet or not.  so if not they should be totally ignored from everything. 
         dont do this.  totally pointeless
 - exec just isn't working.  need to hardcode that its no supported        
