@@ -34,8 +34,6 @@ export class FsGuard {
       { type: 'read', path: 'path', paramName: 'path' },
       { type: 'write', path: 'path', paramName: 'path' }
     ],
-    dir_create: [{ type: 'write', path: 'path', paramName: 'path' }],
-    dir_delete: [{ type: 'write', path: 'path', paramName: 'path' }],
     ls: [{ type: 'read', path: 'path', paramName: 'path' }],
     grep: [{ type: 'read', path: 'path', paramName: 'path' }],
     glob: [{ type: 'read', path: 'base_path', paramName: 'base_path' }]

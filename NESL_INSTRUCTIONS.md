@@ -103,29 +103,6 @@ Move/rename file
 Read multiple files
 - `paths` heredoc string, one path per line
 
-### `dir_create`
-Create directory
-- `path`
-
-### `dir_delete`
-Delete directory
-- `path`
-
-### `ls`
-List directory
-- `path`
-
-### `grep`
-Search pattern in files
-- `pattern`
-- `path`
-- `include` (optional)
-
-### `glob`
-Find files by pattern
-- `pattern`
-- `base_path`
-
 ### `exec`
 Execute code
 - `lang`

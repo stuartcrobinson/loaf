@@ -1,6 +1,6 @@
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
-import { DEFAULT_LOAF_YAML } from './defaults.js';
+import { DEFAULT_LOAF_YAML } from './base-loaf.yml-defaults.js';
 
 /**
  * Creates a starter loaf.yml file if it doesn't exist
@@ -8,7 +8,7 @@ import { DEFAULT_LOAF_YAML } from './defaults.js';
  */
 export async function createStarterConfig(repoPath: string): Promise<boolean> {
   const configPath = join(repoPath, 'loaf.yml');
-  
+
   try {
     await writeFile(configPath, DEFAULT_LOAF_YAML, { flag: 'wx' });
     return true;

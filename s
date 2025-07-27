@@ -117,46 +117,14 @@ done
 
 file_list=$(cat <<'EOF'
 
-/Users/stuart/repos/loaf/unified-design.yaml
-/Users/stuart/repos/loaf/proj/comp/listener/src/unified-design-loader.ts
-/Users/stuart/repos/loaf/proj/comp/orch/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/fs-guard/src/FsGuard.ts
-/Users/stuart/repos/loaf/proj/comp/instruct-gen/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/instruct-gen/src/loader.ts
-/Users/stuart/repos/loaf/proj/comp/instruct-gen/src/parser.ts
-/Users/stuart/repos/loaf/proj/comp/fs-ops/src/index.ts
-/Users/stuart/repos/loaf/proj/comp/exec/src/ExecExecutor.ts
-/Users/stuart/repos/loaf/proj/comp/nesl-action-parser/src/types.ts
-/Users/stuart/repos/loaf/proj/comp/orch/src/types.ts
-/Users/stuart/repos/loaf/unified-design.ts
 /Users/stuart/repos/loaf/use-listener/instruct.md
 
-proj/comp/config/src/index.ts
-proj/comp/config/src/load.ts
-proj/comp/config/src/validate.ts
-proj/comp/fs-ops/src/actions/file_delete.ts
-proj/comp/fs-ops/src/actions/file_move.ts
-proj/comp/fs-ops/src/actions/file_read.ts
-proj/comp/fs-ops/src/actions/file_read_numbered.ts
-proj/comp/fs-ops/src/actions/file_replace_all_text.ts
-proj/comp/fs-ops/src/actions/file_replace_lines.ts
-proj/comp/fs-ops/src/actions/file_replace_text.ts
-proj/comp/fs-ops/src/actions/file_write.ts
-proj/comp/fs-ops/src/actions/files_read.ts
-proj/comp/fs-ops/src/extractNumberedLines.ts
-proj/comp/fs-ops/src/index.ts
-proj/comp/hooks/src/detectShell.ts
-proj/comp/hooks/src/index.ts
-proj/comp/hooks/src/interpolateCommand.ts
-proj/comp/instruct-gen/src/index.ts
-proj/comp/instruct-gen/src/parser.ts
-proj/comp/listener/src/formatters.ts
-proj/comp/listener/src/listener.ts
-proj/comp/listener/src/unified-design-loader.ts
-proj/comp/nesl-action-parser/src/index.ts
-proj/comp/orch/src/index.ts
-proj/comp/orch/src/types.ts
-
+/Users/stuart/repos/loaf/proj/comp/exec/src/executeCommand.ts
+/Users/stuart/repos/loaf/proj/comp/exec/src/formatExecResult.ts
+/Users/stuart/repos/loaf/proj/comp/exec/src/types.ts
+/Users/stuart/repos/loaf/proj/comp/listener/src/formatters.ts
+/Users/stuart/repos/loaf/proj/comp/exec/test/unit/executeCommand.test.ts
+/Users/stuart/repos/loaf/proj/comp/exec/test/unit/formatExecResult.test.ts
 EOF
 )
 

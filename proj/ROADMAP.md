@@ -14,11 +14,12 @@ so what next...
 X review the allowed/exisitng tools/actions
     X clean up fs-ops action handlers
     x rename them to actions? -- mostly done? good enough?
-    - drop dumb stuff like 'dir_create'
-        - lets thoroughly clean up the unified-design thing.  maybe rip out all the future stuff.  that should go in ... somethign else.
+    X drop dumb stuff like 'dir_create'
+        X lets thoroughly clean up the unified-design thing.  maybe rip out all the future stuff.  that should go in ... somethign else.
     X NO indicate in the unified yaml whether they're implemented yet or not.  so if not they should be totally ignored from everything. 
         dont do this.  totally pointeless
-- exec just isn't working.  need to hardcode that its no supported        
+X exec just isn't working.  need to hardcode that its no supported        
+    yes it is.  ...
 - cmd line option for auto copy/paste stuff
 - paste file contents in output for failed file edit action
 - new feature - listen for LLM output copy?  

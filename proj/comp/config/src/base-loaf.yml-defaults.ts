@@ -10,11 +10,6 @@ allowed-actions:
   - file_replace_text
   - file_replace_all_text
   - files_read
-  - dir_create
-  - dir_delete
-  - ls
-  - grep
-  - glob
   - exec
 
 # File system guard configuration

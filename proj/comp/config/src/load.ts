@@ -4,7 +4,7 @@ import { load as loadYaml } from 'js-yaml';
 import type { LoafConfig } from './types.js';
 import { validateConfig } from './validate.js';
 import { createStarterConfig } from './create.js';
-import { DEFAULT_LOAF_YAML } from './defaults.js';
+import { DEFAULT_LOAF_YAML } from './base-loaf.yml-defaults.js';
 
 export async function loadConfig(repoPath: string): Promise<LoafConfig> {
   const configPath = join(repoPath, 'loaf.yml');
@@ -25,10 +25,10 @@ export async function loadConfig(repoPath: string): Promise<LoafConfig> {
     if (error.code === 'ENOENT') {
       // Create the config file
       await createStarterConfig(repoPath);
-      
+
       // Return config by parsing the same YAML we just wrote
       const config = loadYaml(DEFAULT_LOAF_YAML) as LoafConfig;
-      
+
       return config;
     }
     throw error;

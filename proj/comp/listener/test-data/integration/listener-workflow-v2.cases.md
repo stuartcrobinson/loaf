@@ -828,7 +828,7 @@ path = "/tmp/t_listener_read_num/config.yaml"
 
 === LOAF RESULTS ===
 rn1 ✅ file_write /tmp/t_listener_read_num/config.yaml
-rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Action 'file_read_numbered' is not in allowed-actions list
+rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Action 'file_read_numbered' is not in allowed-actions list (file_write,file_read,file_delete,file_move,file_replace_text,file_replace_all_text,files_read,exec)
 === END ===
 
 Testing file read numbered output formatting.
@@ -868,7 +868,7 @@ path = "/tmp/t_listener_read_num/config.yaml"
 ````sh
 === LOAF RESULTS ===
 rn1 ✅ file_write /tmp/t_listener_read_num/config.yaml
-rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Action 'file_read_numbered' is not in allowed-actions list
+rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Action 'file_read_numbered' is not in allowed-actions list (file_write,file_read,file_delete,file_move,file_replace_text,file_replace_all_text,files_read,exec)
 === END ===
 
 === OUTPUTS ===
@@ -879,7 +879,7 @@ rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Action 'file_r
 ````sh
 === LOAF RESULTS ===
 rn1 ✅ file_write /tmp/t_listener_read_num/config.yaml
-rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Action 'file_read_numbered' is not in allowed-actions list
+rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Action 'file_read_numbered' is not in allowed-actions list (file_write,file_read,file_delete,file_move,file_replace_text,file_replace_all_text,files_read,exec)st
 === END ===
 
 === OUTPUTS ===

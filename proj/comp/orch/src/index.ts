@@ -295,7 +295,7 @@ export class Loaf {
         action: action.action,
         params: action.parameters,
         success: false,
-        error: `Action '${action.action}' is not in allowed-actions list`
+        error: `Action '${action.action}' is not in allowed-actions list (${this.config['allowed-actions']})`
       };
     }
 
