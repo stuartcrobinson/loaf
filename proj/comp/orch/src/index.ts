@@ -329,7 +329,7 @@ export class Loaf {
         ...(result.error && { error: result.error }),
         ...(result.data !== undefined && { data: result.data }),
         // Include exec-specific fields at top level
-        ...(action.action === 'exec' && result.data && {
+        ...(action.action === 'exec' && {
           data: {
             stdout: (result as any).stdout,
             stderr: (result as any).stderr,
