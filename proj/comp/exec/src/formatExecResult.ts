@@ -20,7 +20,9 @@ export function formatExecResult(
       success: false,
       stdout: stdout || '',
       stderr: stderr || '',
-      error: error.message
+      error: error.message,
+      // Include exit code if available from error metadata
+      ...(exitCode !== null && { exit_code: exitCode })
     };
   }
   

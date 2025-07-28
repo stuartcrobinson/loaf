@@ -126,13 +126,12 @@ async function runProcess(
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
-      // Check if it's ENOENT (command not found)
-      if ((error as any).code === 'ENOENT') {
-        resolve(formatExecResult(null, stdout, stderr,
-          new Error(`exec: ${command} not found in PATH (ENOENT)`)));
-      } else {
-        resolve(formatExecResult(null, stdout, stderr, error));
-      }
+      // Preserve original error details while including any captured output
+      const errorMessage = (error as any).code === 'ENOENT' 
+        ? `exec: ${command} not found in PATH (ENOENT)`
+        : `exec: ${error.message} (${(error as any).code || 'UNKNOWN'})`;
+      
+      resolve(formatExecResult(null, stdout, stderr, new Error(errorMessage)));
     });
 
 

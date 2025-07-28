@@ -320,7 +320,7 @@ export class Loaf {
 
       const result = await executor(enhancedAction);
 
-      return {
+      const actionResult = {
         seq,
         blockId: action.metadata.blockId,
         action: action.action,
@@ -337,6 +337,13 @@ export class Loaf {
           }
         })
       };
+      
+      // Debug exec errors
+      if (action.action === 'exec' && !result.success) {
+        console.log('DEBUG: Exec failed in orchestrator:', result);
+      }
+      
+      return actionResult;
 
     } catch (error) {
       // Executors should never throw, but handle just in case

@@ -69,6 +69,10 @@ export function formatSummary(orchResult: OrchestratorResult): string {
       if (result.success) {
         lines.push(`${result.blockId} ${icon} ${result.action} ${primaryParam}`.trim());
       } else {
+        // Debug log for exec failures
+        if (result.action === 'exec' && !result.error) {
+          console.log('DEBUG: Exec failed but no error field:', JSON.stringify(result, null, 2));
+        }
         lines.push(`${result.blockId} ${icon} ${result.action} ${primaryParam} - ${getErrorSummary(result.error)}`.trim());
       }
     }
@@ -141,13 +145,23 @@ function getPrimaryParamFromResult(result: any): string {
 }
 
 function getErrorSummary(error?: string): string {
+  console.log('DEBUG getErrorSummary input:', typeof error, error);
+  
   if (!error) return 'Unknown error';
+  
+  // Handle non-string errors
+  if (typeof error !== 'string') {
+    console.log('DEBUG: Non-string error object:', error);
+    return 'Unknown error (non-string)';
+  }
 
   // Extract key error info
   if (error.includes('File not found')) return 'File not found';
   if (error.includes('no such file or directory')) return 'File not found';
   if (error.includes('Permission denied')) return 'Permission denied';
   if (error.includes('Output too large')) return error; // Keep full message
+  if (error.includes('TIMEOUT')) return error; // Keep timeout messages
+  if (error.includes('ENOENT')) return error; // Keep command not found
 
   // For other errors, take first part before details
   const match = error.match(/^[^:]+:\s*([^'(]+)/);
@@ -282,7 +296,7 @@ export function formatFullOutput(orchResult: OrchestratorResult): string {
   // Add outputs for successful actions based on output_display rules
   if (orchResult.results) {
     for (const result of orchResult.results) {
-      if (result.success && result.data && shouldShowOutput(result.action, result.params)) {
+      if (result.data && shouldShowOutput(result.action, result.params)) {
         const primaryParam = getPrimaryParamFromResult(result);
         // For file read operations, don't include path in header since it's shown in the formatted output
         const includeParam = !['file_read', 'file_read_numbered', 'files_read'].includes(result.action);
@@ -297,7 +311,7 @@ export function formatFullOutput(orchResult: OrchestratorResult): string {
           lines.push(...formattedOutput);
         } else if (typeof result.data === 'string') {
           lines.push(result.data.trimEnd());
-        } else if (result.data.stdout || result.data.stderr) {
+        } else if (result.data.stdout !== undefined || result.data.stderr !== undefined) {
           if (result.data.stdout) {
             lines.push(`stdout:\n${result.data.stdout.trimEnd()}`);
           }
@@ -330,8 +344,8 @@ function shouldShowOutput(action: string, params?: any): boolean {
 
   // Actions with output_display: conditional
   if (action === 'exec') {
-    // Check return_output parameter (default is true)
-    return params?.return_output !== false;
+    // Always show output for debugging failed commands
+    return true;
   }
 
   // Default to showing output for unknown actions

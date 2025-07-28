@@ -3,4 +3,9 @@ g1v ❌ exec bash - Unknown error
 === END ===
 
 === OUTPUTS ===
+
+[g1v] exec bash:
+stderr:
+cat: illegal option -- 1
+usage: cat [-belnstuv] [file ...]
 === END ===

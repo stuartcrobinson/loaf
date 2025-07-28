@@ -18,7 +18,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint proj/**/*.ts",
     "lint:fix": "eslint proj/**/*.ts --fix",
-    "listener": "tsx ../repos_tools/loaf/use-listener/test-listener-live.ts"
+    "other-listener": "tsx ../repos_tools/loaf/use-listener/test-listener-live.ts",
+    "listener": "tsx use-listener/test-listener-live.ts"
   },
   "dependencies": {
     "clipboardy": "^4.0.0",

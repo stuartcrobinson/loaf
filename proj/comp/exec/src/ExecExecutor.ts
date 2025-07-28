@@ -6,7 +6,7 @@ import { executeCommand } from './executeCommand.js';
  * Executor for shell/code execution operations
  */
 export class ExecExecutor {
-  constructor(/* future: execGuard */) {}
+  constructor(/* future: execGuard */) { }
 
   async execute(action: LoafAction): Promise<FileOpResult> {
     if (action.action !== 'exec') {
@@ -16,6 +16,16 @@ export class ExecExecutor {
       };
     }
 
-    return executeCommand(action);
+    const execResult = await executeCommand(action);
+    
+    // Transform ExecResult to FileOpResult with fields orchestrator expects
+    return {
+      success: execResult.success,
+      error: execResult.error,
+      // Place stdout/stderr/exit_code at top level where orchestrator looks for them
+      stdout: execResult.stdout,
+      stderr: execResult.stderr,
+      exit_code: execResult.exit_code
+    } as any;
   }
 }
