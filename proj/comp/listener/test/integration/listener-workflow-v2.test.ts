@@ -139,7 +139,8 @@ export async function listenerWorkflowTests() {
       // Start listener
       handle = await startListener({
         filePath: testFile,
-        debounceMs: 100
+        debounceMs: 100,
+        useClipboard: true
       });
 
       // Wait for initial processing

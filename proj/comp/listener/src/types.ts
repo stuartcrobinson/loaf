@@ -16,6 +16,7 @@ export interface ListenerState {
   lastExecutedHash: string;
   isProcessing: boolean;
   outputPath: string;
+  inputPath: string;
   actionSchema?: Map<string, ActionDefinition>;
   debug?: boolean;
   useClipboard: boolean;

@@ -9,10 +9,5 @@
     "**/node_modules": true,
     "**/dist": true,
     "**/*.js.map": true
-  },
-  "workbench.colorCustomizations": {
-    "activityBar.background": "#3E166C",
-    "titleBar.activeBackground": "#571F97",
-    "titleBar.activeForeground": "#FBF9FE"
   }
 }

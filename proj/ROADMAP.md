@@ -24,18 +24,34 @@ X fix exec error output
 X listener human entry point
 X cmd line option for auto copy/paste stuff
 X paste file contents in output for failed file edit action
-! new feature - listen for LLM output copy?  
-    - yes!!!!  be watching the clipboard for when
-        - contains nesl AND THEN
-            - clipbaord changes within 1 or 2 seconds such that it contains the same nesl markers and ids (note that we cant do an exact match cos formatting syntax might be different from copy button vs select and copy)
-            - so u click the copy button, then do ctrl-a, ctrl-v -- to immediately just copy the whole page
-            - and this is how sloop will know that the first thing u copied was real nesl syntax that u want to get executed.  
-            - should we integrate mac notifications?  prob too hard. deal w settings etc
+X new feature - listen for LLM output copy?  
+    X yes!!!!  be watching the clipboard for when
+        X contains nesl AND THEN
+            x clipbaord changes within 1 or 2 seconds such that it contains the same nesl markers and ids (note that we cant do an exact match cos formatting syntax might be different from copy button vs select and copy)
+            x so u click the copy button, then do ctrl-a, ctrl-v -- to immediately just copy the whole page
+            x and this is how sloop will know that the first thing u copied was real nesl syntax that u want to get executed.  
+            x no - should we integrate mac notifications?  prob too hard. deal w settings etc
 - publish nesl to npm 
 - publish slupe to npm 
 - look for response from npm support about getting my account back...             
 - rename to slupe
 - cleanup, just delete trash or embarrassing bits
+
+WHAT TO DO WHILE WAITING FOR NPM ACCESS?
+
+
+
+- update all 'path' vars to support wildcard/glob expansion.  
+    - maybe have param for all such actions like "dont_support_path_wildcards" or soemthing.  just meniotn it once and then share reminder in error or warning message if there's a real file continaign a * or soemthing
+- file_replace_text_range
+- file_read_node
+- file_overwrite_node
+- file_replace_in_node
+- file_delete_node_
+- file_insert_node_after
+- and then something to do like sed using file pattern and regex?
+- sd
+- rg
 
 - PUBLISH TO HACKER NEWS
 

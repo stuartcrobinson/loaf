@@ -12,11 +12,89 @@ import { computeContentHash } from './utils.js';
 // Module-level state for tracking active listeners
 const activeListeners = new Map<string, ListenerHandle>();
 
+// Clipboard monitoring state
+interface ClipboardEntry {
+  content: string;
+  timestamp: number;
+}
+
+let lastClipboard: ClipboardEntry | null = null;
+let clipboardMonitorInterval: NodeJS.Timer | null = null;
+
 // Strip prepended summary section if present
 function stripSummarySection(content: string): string {
   const marker = '=== END ===';
   const i = content.lastIndexOf(marker);
   return i === -1 ? content : content.slice(i + marker.length).trimStart();
+}
+
+// Extract NESL SHA IDs from content
+function extractNeslShas(content: string): Set<string> {
+  const shaPattern = /#!nesl\s*\[@[^:]+:\s*([a-zA-Z0-9]+)\]/g;
+  const shas = new Set<string>();
+  let match;
+  while ((match = shaPattern.exec(content)) !== null) {
+    shas.add(match[1]);
+  }
+  return shas;
+}
+
+// Check if content has valid NESL blocks
+function hasValidNesl(content: string): boolean {
+  return extractNeslShas(content).size > 0;
+}
+
+// Check clipboard for input trigger pattern
+async function checkClipboardTrigger(current: ClipboardEntry, state: ListenerState): Promise<void> {
+  if (!lastClipboard || current.timestamp - lastClipboard.timestamp > 1800) {
+    lastClipboard = current;
+    return;
+  }
+  
+  // Determine smaller/larger
+  const [smaller, larger] = current.content.length < lastClipboard.content.length 
+    ? [current.content, lastClipboard.content]
+    : [lastClipboard.content, current.content];
+  
+  // Try to extract SHAs from smaller
+  const shas = extractNeslShas(smaller);
+  if (shas.size === 0) {
+    lastClipboard = current;
+    return;
+  }
+  
+  // Check if all SHA end delimiters exist in larger
+  const allFound = [...shas].every(sha => {
+    const endPattern = new RegExp(`#!end_${sha}\\b`, 'i');
+    return endPattern.test(larger);
+  });
+  
+  if (allFound) {
+    await writeFile(state.inputPath, smaller);
+    if (state.debug) {
+      console.log(`Clipboard trigger: wrote ${smaller.length} chars to input file`);
+    }
+  }
+  
+  lastClipboard = current;
+}
+
+// Monitor clipboard for input patterns
+async function monitorClipboard(state: ListenerState): Promise<void> {
+  try {
+    const content = await clipboard.read();
+    const current = { content, timestamp: Date.now() };
+    
+    if (lastClipboard && current.content !== lastClipboard.content) {
+      await checkClipboardTrigger(current, state);
+    } else if (!lastClipboard) {
+      lastClipboard = current;
+    }
+  } catch (error) {
+    if (state.debug) {
+      console.error('Clipboard monitor error:', error);
+    }
+  }
 }
 
 
@@ -189,7 +267,8 @@ export async function startListener(config: ListenerConfig): Promise<ListenerHan
     isProcessing: false,
     outputPath: join(dirname(config.filePath), config.outputFilename || '.loaf-output-latest.txt'),
     debug: config.debug || false,
-    useClipboard: config.useClipboard || false
+    useClipboard: config.useClipboard || false,
+    inputPath: config.filePath
   };
 
   // Set up debounced handler
@@ -212,6 +291,13 @@ export async function startListener(config: ListenerConfig): Promise<ListenerHan
   // Process initial content
   debouncedProcess();
 
+  // Start clipboard monitoring if enabled
+  if (config.useClipboard) {
+    clipboardMonitorInterval = setInterval(() => {
+      monitorClipboard(state);
+    }, 50);
+  }
+
   // Create handle
   const handle: ListenerHandle = {
     id: generateId(),
@@ -219,6 +305,10 @@ export async function startListener(config: ListenerConfig): Promise<ListenerHan
     stop: async () => {
       unwatchFile(config.filePath);
       debouncedProcess.cancel();
+      if (clipboardMonitorInterval) {
+        clearInterval(clipboardMonitorInterval);
+        clipboardMonitorInterval = null;
+      }
       activeListeners.delete(config.filePath);
     }
   };
