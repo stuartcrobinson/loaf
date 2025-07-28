@@ -19,7 +19,8 @@ X review the allowed/exisitng tools/actions
     X NO indicate in the unified yaml whether they're implemented yet or not.  so if not they should be totally ignored from everything. 
         dont do this.  totally pointeless
 X exec just isn't working.  need to hardcode that its no supported        
-    yes it is.  ...
+    yes it is.  ... well error formatting is broken...
+X fix exec error output
 - cmd line option for auto copy/paste stuff
 - paste file contents in output for failed file edit action
 - new feature - listen for LLM output copy?  
