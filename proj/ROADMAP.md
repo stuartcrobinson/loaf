@@ -21,8 +21,9 @@ X review the allowed/exisitng tools/actions
 X exec just isn't working.  need to hardcode that its no supported        
     yes it is.  ... well error formatting is broken...
 X fix exec error output
+- listener human entry point
 - cmd line option for auto copy/paste stuff
-- paste file contents in output for failed file edit action
+X paste file contents in output for failed file edit action
 - new feature - listen for LLM output copy?  
     - yes!!!!  be watching the clipboard for when
         - contains nesl AND THEN

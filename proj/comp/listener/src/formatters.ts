@@ -1,4 +1,5 @@
 import type { ExecutionResult as OrchestratorResult } from '../../orch/src/index.js';
+import { readFileSync } from 'fs';
 
 
 export function formatSummary(orchResult: OrchestratorResult): string {
@@ -255,6 +256,23 @@ export function formatFullOutput(orchResult: OrchestratorResult): string {
   // Add outputs for successful actions based on output_display rules
   if (orchResult.results) {
     for (const result of orchResult.results) {
+      // Special case: show file contents for failed text replacements
+      if (!result.success && 
+          ['file_replace_text', 'file_replace_all_text'].includes(result.action) &&
+          result.error?.includes('not found in file') &&
+          result.params?.path) {
+        lines.push('', `[${result.blockId}] ${result.action} ${result.params.path} (failed - showing file contents):`);
+        try {
+          const content = readFileSync(result.params.path, 'utf-8');
+          lines.push(`=== START FILE: ${result.params.path} ===`);
+          lines.push(content);
+          lines.push(`=== END FILE: ${result.params.path} ===`);
+        } catch (err: any) {
+          lines.push(`[Error reading file: ${err.message}]`);
+        }
+        continue;
+      }
+
       if (result.data && shouldShowOutput(result.action, result.params)) {
         // Special formatting for failed exec commands
         if (result.action === 'exec' && !result.success) {

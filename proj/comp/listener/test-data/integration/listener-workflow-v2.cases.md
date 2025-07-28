@@ -644,6 +644,23 @@ fn2 ❌ file_replace_text /tmp/t_listener_no_match/readme.md - old_text not foun
 === END ===
 
 === OUTPUTS ===
+
+[fn2] file_replace_text /tmp/t_listener_no_match/readme.md (failed - showing file contents):
+=== START FILE: /tmp/t_listener_no_match/readme.md ===
+# Project README
+
+This is a sample project.
+
+## Installation
+
+Run the following command:
+- npm install
+
+## Usage
+
+Start the application with:
+- npm start
+=== END FILE: /tmp/t_listener_no_match/readme.md ===
 === END ===
 ````
 
@@ -655,6 +672,23 @@ fn2 ❌ file_replace_text /tmp/t_listener_no_match/readme.md - old_text not foun
 === END ===
 
 === OUTPUTS ===
+
+[fn2] file_replace_text /tmp/t_listener_no_match/readme.md (failed - showing file contents):
+=== START FILE: /tmp/t_listener_no_match/readme.md ===
+# Project README
+
+This is a sample project.
+
+## Installation
+
+Run the following command:
+- npm install
+
+## Usage
+
+Start the application with:
+- npm start
+=== END FILE: /tmp/t_listener_no_match/readme.md ===
 === END ===
 ````
 
