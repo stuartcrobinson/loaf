@@ -333,7 +333,8 @@ export class Loaf {
           data: {
             stdout: (result as any).stdout,
             stderr: (result as any).stderr,
-            exit_code: (result as any).exit_code
+            exit_code: (result as any).exit_code,
+            command: action.parameters.code
           }
         })
       };

@@ -1,10 +1,4 @@
-📋 Copied to clipboard
-
-=== LOAF RESULTS ===
-xyz ❌ exec bash - No test files found, exiting with code 1
-=== END ===
-
-
+# Test Exec Error Formatting
 
 ```sh nesl
 #!nesl [@three-char-SHA-256: xyz]

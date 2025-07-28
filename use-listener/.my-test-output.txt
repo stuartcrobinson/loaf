@@ -1,11 +1,24 @@
 === LOAF RESULTS ===
-g1v ❌ exec bash - Unknown error
+xyz ❌ exec bash - No test files found, exiting with code 1
 === END ===
 
 === OUTPUTS ===
 
-[g1v] exec bash:
+[xyz] exec bash (failed):
+command:
+npx vitest run **/orch/** --hideSkippedTests
+
+stdout:
+
+ RUN  v1.6.1 /Users/stuart/repos/loaf
+
 stderr:
-cat: illegal option -- 1
-usage: cat [-belnstuv] [file ...]
+  filter:  **/orch/**
+  include: proj/**/*.test.ts
+  exclude:  node_modules/**, **/listener/test/unit/stopListener.test.ts, **/listener/test/integration/listener-workflow-v2.test.ts
+  watch exclude:  **/node_modules/**, **/dist/**
+  
+  No test files found, exiting with code 1
+
+exit code: 1
 === END ===

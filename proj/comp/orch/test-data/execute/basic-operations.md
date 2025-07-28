@@ -87,6 +87,7 @@ content = "Second file"
     },
     "success": true,
     "data": {
+      "command": "echo 'hello'",
       "stdout": "hello\n",
       "stderr": "",
       "exit_code": 0

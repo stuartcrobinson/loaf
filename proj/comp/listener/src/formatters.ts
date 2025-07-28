@@ -1,56 +1,5 @@
 import type { ExecutionResult as OrchestratorResult } from '../../orch/src/index.js';
 
-// export function formatSummary(orchResult: OrchestratorResult, timestamp: Date): string {
-//   const lines = ['', '=== LOAF RESULTS ==='];
-
-//   // Add execution results
-//   if (orchResult.results) {
-//     for (const result of orchResult.results) {
-//       const icon = result.success ? '✅' : '❌';
-//       const primaryParam = getPrimaryParamFromResult(result);
-
-//       if (result.success) {
-//         lines.push(`${result.blockId} ${icon} ${result.action} ${primaryParam}`.trim());
-//       } else {
-//         lines.push(`${result.blockId} ${icon} ${result.action} ${primaryParam} - ${getErrorSummary(result.error)}`.trim());
-//       }
-//     }
-//   }
-
-//   // Add parse errors - group by blockId
-//   if (orchResult.parseErrors) {
-//     const errorsByBlock = new Map<string, any[]>();
-
-//     for (const error of orchResult.parseErrors) {
-//       const blockId = error.blockId || 'unknown';
-//       if (!errorsByBlock.has(blockId)) {
-//         errorsByBlock.set(blockId, []);
-//       }
-//       errorsByBlock.get(blockId)!.push(error);
-//     }
-
-//     // Format grouped errors
-//     for (const [blockId, errors] of errorsByBlock) {
-//       const firstError = errors[0];
-//       const action = firstError.action || 'parse';
-//       const lineInfo = firstError.blockStartLine ? `, line ${firstError.blockStartLine}` : '';
-
-//       if (errors.length === 1) {
-//         // Single error - simple format
-//         lines.push(`${blockId} ❌ ${action}${lineInfo} - ${firstError.errorType}: ${firstError.message}`);
-//       } else {
-//         // Multiple errors - list them
-//         lines.push(`${blockId} ❌ ${action}${lineInfo} - ${errors.length} errors:`);
-//         const uniqueMessages = [...new Set(errors.map(e => `  ${e.errorType}: ${e.message}`))];
-//         lines.push(...uniqueMessages);
-//       }
-//     }
-//   }
-
-//   lines.push('=== END ===', '');
-//   return lines.join('\n');
-// }
-
 
 export function formatSummary(orchResult: OrchestratorResult): string {
   const lines = ['', '=== LOAF RESULTS ==='];
@@ -73,7 +22,7 @@ export function formatSummary(orchResult: OrchestratorResult): string {
         if (result.action === 'exec' && !result.error) {
           console.log('DEBUG: Exec failed but no error field:', JSON.stringify(result, null, 2));
         }
-        lines.push(`${result.blockId} ${icon} ${result.action} ${primaryParam} - ${getErrorSummary(result.error)}`.trim());
+        lines.push(`${result.blockId} ${icon} ${result.action} ${primaryParam} - ${getErrorSummary(result.error, result)}`.trim());
       }
     }
   }
@@ -144,14 +93,24 @@ function getPrimaryParamFromResult(result: any): string {
   return '';
 }
 
-function getErrorSummary(error?: string): string {
-  console.log('DEBUG getErrorSummary input:', typeof error, error);
+function getErrorSummary(error?: string, result?: any): string {
+  // Special handling for exec failures
+  if (result?.action === 'exec' && result?.data?.stderr) {
+    const stderr = result.data.stderr.trim();
+    const lines = stderr.split('\n').filter(l => l.trim());
+    if (lines.length > 0) {
+      // Get last non-empty line as likely error message
+      return lines[lines.length - 1];
+    }
+    if (result.data.exit_code !== undefined) {
+      return `Exit code ${result.data.exit_code}`;
+    }
+  }
   
   if (!error) return 'Unknown error';
   
   // Handle non-string errors
   if (typeof error !== 'string') {
-    console.log('DEBUG: Non-string error object:', error);
     return 'Unknown error (non-string)';
   }
 
@@ -237,7 +196,7 @@ export function formatFullOutput(orchResult: OrchestratorResult): string {
       if (result.success) {
         lines.push(`${result.blockId} ${icon} ${result.action} ${primaryParam}`.trim());
       } else {
-        lines.push(`${result.blockId} ${icon} ${result.action} ${primaryParam} - ${getErrorSummary(result.error)}`.trim());
+        lines.push(`${result.blockId} ${icon} ${result.action} ${primaryParam} - ${getErrorSummary(result.error, result)}`.trim());
       }
     }
   }
@@ -297,6 +256,34 @@ export function formatFullOutput(orchResult: OrchestratorResult): string {
   if (orchResult.results) {
     for (const result of orchResult.results) {
       if (result.data && shouldShowOutput(result.action, result.params)) {
+        // Special formatting for failed exec commands
+        if (result.action === 'exec' && !result.success) {
+          lines.push('', `[${result.blockId}] exec ${result.params.lang || 'bash'} (failed):`);
+          lines.push('command:');
+          lines.push(result.data.command || result.params.code || '[command not available]');
+          lines.push('');
+          
+          if (result.data.stdout) {
+            lines.push('stdout:');
+            lines.push(result.data.stdout.trimEnd());
+            lines.push('');
+          }
+          
+          if (result.data.stderr) {
+            lines.push('stderr:');
+            // Indent stderr content for clarity
+            const stderrLines = result.data.stderr.trimEnd().split('\n');
+            lines.push(...stderrLines.map(line => '  ' + line));
+            lines.push('');
+          }
+          
+          if (result.data.exit_code !== undefined) {
+            lines.push(`exit code: ${result.data.exit_code}`);
+          }
+          continue;
+        }
+
+        // Normal formatting for successful actions
         const primaryParam = getPrimaryParamFromResult(result);
         // For file read operations, don't include path in header since it's shown in the formatted output
         const includeParam = !['file_read', 'file_read_numbered', 'files_read'].includes(result.action);

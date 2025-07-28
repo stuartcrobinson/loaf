@@ -879,7 +879,7 @@ rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Action 'file_r
 ````sh
 === LOAF RESULTS ===
 rn1 ✅ file_write /tmp/t_listener_read_num/config.yaml
-rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Action 'file_read_numbered' is not in allowed-actions list (file_write,file_read,file_delete,file_move,file_replace_text,file_replace_all_text,files_read,exec)st
+rn2 ❌ file_read_numbered /tmp/t_listener_read_num/config.yaml - Action 'file_read_numbered' is not in allowed-actions list (file_write,file_read,file_delete,file_move,file_replace_text,file_replace_all_text,files_read,exec)
 === END ===
 
 === OUTPUTS ===
