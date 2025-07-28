@@ -125,23 +125,27 @@ async function processFileChange(filePath: string, state: ListenerState): Promis
     const summary = formatSummary(orchResult);
     const fullOutput = await formatFullOutput(orchResult);
 
-    // Copy to clipboard
+    // Copy to clipboard if enabled
     let clipboardSuccess = false;
-    try {
-      await clipboard.write(fullOutput);
-      clipboardSuccess = true;
-    } catch (error) {
-      console.error('listener: Clipboard write failed:', error);
+    let clipboardStatus = '';
+    
+    if (state.useClipboard) {
+      try {
+        await clipboard.write(fullOutput);
+        clipboardSuccess = true;
+      } catch (error) {
+        console.error('listener: Clipboard write failed:', error);
+      }
+      clipboardStatus = formatClipboardStatus(clipboardSuccess);
     }
-
-    // Format clipboard status
-    const clipboardStatus = formatClipboardStatus(clipboardSuccess);
 
     // Write output file (without clipboard status)
     await writeFile(state.outputPath, fullOutput);
 
-    // Prepend to input file with clipboard status
-    const prepend = clipboardStatus + '\n' + summary;
+    // Prepend to input file
+    const prepend = state.useClipboard && clipboardStatus 
+      ? clipboardStatus + '\n' + summary 
+      : summary;
     const updatedContent = prepend + '\n' + fullContent;
     await writeFile(filePath, updatedContent);
 
@@ -184,7 +188,8 @@ export async function startListener(config: ListenerConfig): Promise<ListenerHan
     lastExecutedHash: '',
     isProcessing: false,
     outputPath: join(dirname(config.filePath), config.outputFilename || '.loaf-output-latest.txt'),
-    debug: config.debug || false
+    debug: config.debug || false,
+    useClipboard: config.useClipboard || false
   };
 
   // Set up debounced handler

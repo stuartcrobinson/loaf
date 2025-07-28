@@ -7,6 +7,7 @@ Critical constraints:
 - Whitespace: preserved exactly in heredocs
 - when needing output from an action, like from file_read, you must terminate your LLM response and wait for the user to respond with the output
 - `exec` is not supported.  to initiate bash commands, place them in a separate fenced code block and just ask the user to run them
+- multiline strings in nesl must be in heredocs using << notation.
 
 ## NESL examples
 

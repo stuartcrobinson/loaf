@@ -50,4 +50,7 @@ hooks:
 # Variables available in commands
 vars:
   COMMIT_MSG: "AI-assisted changes"
-  # Add more variables as needed`;
+  # Add more variables as needed
+
+# Listener configuration
+clipboard: false  # Enable clipboard copy on execution`;

@@ -6,6 +6,9 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "bin": {
+    "loaf": "./proj/src/index.ts"
+  },
   "scripts": {
     "build": "tsc --noEmit",
     "dev": "tsx watch proj/src/index.ts",

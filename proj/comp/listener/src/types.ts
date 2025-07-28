@@ -3,6 +3,7 @@ export interface ListenerConfig {
   debounceMs?: number;
   outputFilename?: string;
   debug?: boolean;
+  useClipboard?: boolean;
 }
 
 export interface ListenerHandle {
@@ -17,6 +18,7 @@ export interface ListenerState {
   outputPath: string;
   actionSchema?: Map<string, ActionDefinition>;
   debug?: boolean;
+  useClipboard: boolean;
 }
 
 export interface ActionDefinition {

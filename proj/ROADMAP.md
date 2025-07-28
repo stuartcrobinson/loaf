@@ -21,10 +21,10 @@ X review the allowed/exisitng tools/actions
 X exec just isn't working.  need to hardcode that its no supported        
     yes it is.  ... well error formatting is broken...
 X fix exec error output
-- listener human entry point
-- cmd line option for auto copy/paste stuff
+X listener human entry point
+X cmd line option for auto copy/paste stuff
 X paste file contents in output for failed file edit action
-- new feature - listen for LLM output copy?  
+! new feature - listen for LLM output copy?  
     - yes!!!!  be watching the clipboard for when
         - contains nesl AND THEN
             - clipbaord changes within 1 or 2 seconds such that it contains the same nesl markers and ids (note that we cant do an exact match cos formatting syntax might be different from copy button vs select and copy)
